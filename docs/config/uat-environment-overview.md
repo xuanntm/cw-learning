@@ -1,7 +1,7 @@
 ## UAT Connectivity
-- Local IP:
-- Virtual Environment IP:
-- VPN:
+- Local IP: don't want to use because it keeps changing when switch to different network
+- Virtual Environment IP: 20.247.185.174
+- VPN: No VPN
 - Endpoint:
 - Whitelist required: Yes/No
 - IT contact:

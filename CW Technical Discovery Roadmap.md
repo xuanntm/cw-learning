@@ -40,8 +40,8 @@
 
 ## Day 1 — CargoWise System Overview
 
-* [ ] Understand CargoWise One-File Concept
-* [ ] Learn difference:
+* [x] Understand CargoWise One-File Concept
+* [x] Learn difference:
 
   * Shipment
   * Consol
@@ -49,13 +49,13 @@
   * Organization
   * Milestone/Event
   * Invoice
-* [ ] Review CargoWise menu structure:
+* [x] Review CargoWise menu structure:
 
   * Registry
   * EDI Messaging
   * Forwarding
   * Accounting (high-level only)
-* [ ] Document “What are core system objects?”
+* [x] Document “What are core system objects?”
 
 ### Deliverable:
 
@@ -65,7 +65,7 @@
 
 ## Day 2 — Registry Discovery
 
-* [ ] Access Registry
+* [X] Access Registry
 * [ ] Review:
 
   * Organizations
