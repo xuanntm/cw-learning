@@ -1,0 +1,79 @@
+@startuml
+title CargoWise eAdaptor Next - Inbound and Outbound Mechanism
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+actor "External System\n(Client / Boomi / ERP)" as EXT
+actor "CargoWise User" as USER
+
+rectangle "CargoWise UAT Environment" as CW {
+  
+  component "CargoWise Business Object\nShipment / Org / Invoice / Milestone" as OBJ
+  
+  rectangle "eAdaptor Next" as EAN {
+    component "Inbound Path" as IN
+    component "Outbound Path" as OUT
+    component "Authentication\nBasic Auth / Token" as AUTH
+    component "Message Validation\nXML / XSD / Schema" as VALID
+    component "Message Queue" as QUEUE
+    component "Processing Engine" as ENGINE
+    component "Message Logs\nSuccess / Error / Retry" as LOG
+  }
+}
+
+database "CargoWise Database" as DB
+
+rectangle "Middleware Layer\nBoomi / API Gateway" as MW
+cloud "Client Endpoint\nAPI / SFTP / Web Service" as CLIENT
+
+'========================
+' INBOUND FLOW
+'========================
+EXT --> AUTH : 1. Send inbound request\nHTTP POST / SOAP / SFTP\nwith credentials
+AUTH --> IN : 2. Authentication passed
+IN --> VALID : 3. Validate payload\nXML / schema / mandatory fields
+VALID --> QUEUE : 4. Accepted message queued
+QUEUE --> ENGINE : 5. Process inbound message
+ENGINE --> OBJ : 6. Create / update CW object
+OBJ --> DB : 7. Save transaction
+ENGINE --> LOG : 8. Write processing result
+LOG --> EXT : 9. Return response\nSuccess / Error
+
+'========================
+' OUTBOUND FLOW
+'========================
+USER --> OBJ : 1. User updates CW data\nShipment / Milestone / Invoice
+OBJ --> OUT : 2. Event trigger activated
+OUT --> VALID : 3. Build outbound XML payload
+VALID --> QUEUE : 4. Queue outbound message
+QUEUE --> MW : 5. Send message to middleware
+MW --> CLIENT : 6. Transform / route to client endpoint
+CLIENT --> MW : 7. Response / acknowledgement
+MW --> LOG : 8. Return status to CW
+LOG --> USER : 9. Admin checks success/error log
+
+note right of AUTH
+Inbound requires valid
+endpoint + credential +
+permission setup.
+end note
+
+note right of VALID
+Schema validation checks:
+- XML format
+- mandatory fields
+- data structure
+- message type
+end note
+
+note bottom of LOG
+Logs are used for:
+- troubleshooting
+- retry
+- audit trail
+- support analysis
+end note
+
+@enduml
