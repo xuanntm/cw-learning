@@ -1,0 +1,7 @@
+> Message Purge Settings : have multiple config for Application Codes, Message Types and Sub Types
+
+> eAdaptor > Health Check > Failed EDI Interchange > Email Recipients: Multiple companies information
+
+> eAdaptor > Inbound > Basic Authentication | Service URL : For inbound config
+
+> eAdaptor > Inbound
