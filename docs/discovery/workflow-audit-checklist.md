@@ -1,0 +1,109 @@
+# Workflow Templates — Audit Checklist
+
+Purpose: verify (in live CW, not just the static XML exports) the open findings from `docs/workflow/workflow-templates-analysis.md` and `docs/discovery/prod-vs-uat-gap-analysis.md`, and give a repeatable procedure for auditing any workflow template going forward. Confirmed: you have **admin access to Workflow Templates** in CW, so every item below is self-serve unless marked otherwise.
+
+Status legend: `[ ]` Not Started · `[/]` In Progress · `[x]` Completed · `[!]` Blocked / Need someone else
+
+## Interview log
+
+Answers gathered so far — re-ask if circumstances change (e.g. after checking Registry):
+
+| Question | Answer (2026-08-23) |
+|---|---|
+| Is "BravoTran" a currently active customer/partner integration? | Not sure — needs checking (Section A1) |
+| Is "MVN" a currently operating branch/company code? | Not sure — needs checking (Section A2) |
+| Do OwnerCodes `SIMLOGMNL` (Non-Prod) and `MARCONSGN` (Prod) represent the same entity? | Not sure — needs checking (Section A3) |
+| Your CW access level | Admin access to Workflow Templates — you can execute this whole checklist directly |
+
+---
+
+## Section A — Resolve the three unknowns first
+
+Everything downstream depends on these. Do this section before the rest.
+
+- [ ] **A1. What is "BravoTran"?**
+  - In CW: Maintain > Master Data > Organizations, search `BravoTran`. Record: Organization type (customer/carrier/agent), Active/Inactive status, any linked branches.
+  - If no organization record matches, check whether it's a Group (Maintain > User Admin > Group) or a Service/Message-type identifier instead of an Org — the name might refer to an EDI partner code rather than a CW Organization record.
+  - **Record here:** _(fill in once checked)_
+
+- [ ] **A2. What is "MVN"?**
+  - In CW: Registry > Branches (or Maintain > User Admin > wherever Branch codes are set up). Search for a branch/company code `MVN`.
+  - Record: Active/Inactive, country, go-live date if visible.
+  - **Record here:** _(fill in once checked)_
+
+- [ ] **A3. Do `SIMLOGMNL` and `MARCONSGN` represent the same entity?**
+  - These are the `OwnerCode` values from the two exports' headers — likely the login company code used when running the export, not necessarily the company the templates belong to.
+  - Check: does your CW login let you switch between both codes? If both are accessible from the same user login, they're almost certainly the same Enterprise instance viewed from different company contexts (normal). If only one is accessible to you, ask IT/admin to confirm both exports came from the same entity before trusting the Prod/Non-Prod diff as apples-to-apples.
+  - **Record here:** _(fill in once checked)_
+
+---
+
+## Section B — Critical: verify the empty + NFB Universal templates
+
+Applies to `BravoTran Shipment` (SHP), `BravoTran Customs` (BRK), `BravoTran Console` (CON) — confirmed empty (0 items) and `TriggerFallbackMethod=NFB` in **both** Non-Prod and Prod.
+
+- [ ] **B1.** Open each of the 3 templates in Registry > Workflow Templates. Confirm directly in the UI (not just the XML) that Tasks/Milestones/Triggers tabs are genuinely empty and Trigger Fallback Method is still `NFB`.
+- [ ] **B2.** Determine whether any live job actually matches these Universal templates. Practical trick from the CW reference guide: open a job of the relevant type (e.g. any Shipment), go to its Workflow & Tracking tab, add the **Template Name (Source Template)** column to the grid, and check whether any job shows a BravoTran template as its source. If BravoTran is a real org (from A1), filter/search jobs for that customer specifically.
+- [ ] **B3.** If jobs ARE matching and getting nothing applied: escalate — this is jobs silently missing all workflow automation (including any EDI triggers) today.
+- [ ] **B4.** If no jobs match (BravoTran turns out inactive/unused): downgrade this from "critical" to "cleanup candidate" — recommend deactivating the 3 templates or documenting them as intentionally dormant so a future audit doesn't re-flag them.
+- [ ] **B5.** Record outcome in `docs/backlog/` following the pattern of `docs/backlog/eadaptor-inbound-auth-401.md` if it turns out to be a real gap needing a fix.
+
+---
+
+## Section C — Verify environment-only templates
+
+- [ ] **C1.** `H56 SHP, SEA, DOM, global, system` (Prod-only, 99 items) — confirm it's actively used (check Source Template on a few real domestic sea shipments). If confirmed active, decide with your team whether to replicate it into Non-Prod for test coverage, and log that decision.
+- [ ] **C2.** The 3 `MVN`-coded templates (Prod-only) — once A2 confirms MVN's status, decide the same replicate-or-ignore question.
+- [ ] **C3.** The 3 Non-Prod-only templates (`BRK, global, system`; `H56, CON, SPH, local, system`; `H56 SHP, SPH, GOOASISIN, local, system`) — check whether these are intentional test scaffolding or templates that were meant to be promoted to Prod and never were.
+
+---
+
+## Section D — Verify the EXP/IMP/FIN category gap
+
+`H56 SHP, global, system` has 22 Exception + 4 Finance + 14 Import items in Non-Prod that don't exist in Prod at all (and no other template in the whole Prod export has any EXP/IMP/FIN items either).
+
+- [ ] **D1.** Open `H56 SHP, global, system` in both environments side by side (or export again if the files are stale) and confirm this split still holds.
+- [ ] **D2.** Ask whoever last modified this template (check any audit/change-log CW exposes on the record, or ask the team) whether the EXP/IMP/FIN items are: (a) new functionality staged for promotion to Prod, or (b) deliberate Non-Prod-only test items.
+- [ ] **D3.** If (a): this becomes a deployment backlog item — log it. If (b): document that decision so it's not re-flagged as a bug later.
+
+---
+
+## Section E — General template audit procedure (repeatable, for any template)
+
+Use this for any template not already covered above, or for future audits:
+
+- [ ] Record: Name, Process Type, Active flag, System vs Custom (`IsSystem`), Universal/Partial flags.
+- [ ] Record all three Fallback Methods (Milestone/Task/Trigger) — flag any `NFB` for a closer look, since that's the setting that can cause "missing" behavior to go unnoticed.
+- [ ] Count Tasks/Milestones/Triggers — flag anything at 0 items combined with `NFB` (see Section B pattern) as high priority.
+- [ ] For templates with overlapping-looking criteria (e.g. multiple SHP templates with no visible SubType/Country differentiator), check the actual match criteria — Basic Registration tab conditions, linked Organization, or `ProcessJobHeaderCollection` in an export — to confirm they don't unintentionally double-apply.
+- [ ] Cross-check Trigger items with `TriggerType=IFC` against `docs/integration-design/diagrams/eAdaptor_Inbound_Outbound_Mechanism.puml` to confirm which are genuine EDI outbound sends vs internal notifications.
+- [ ] Log findings in `docs/discovery/` or `docs/backlog/` following existing file patterns in this repo.
+
+---
+
+## Stakeholder questions — for your PO
+
+Business context, ownership, and priority calls that only someone with organizational visibility can answer.
+
+- Is "BravoTran" a current customer/partner/carrier? Are any jobs today expected to route through it? (Section A1/B — the empty+NFB risk depends entirely on this.)
+- Is "MVN" a currently operating branch/office? When did it go live, and should its Prod-only templates (SHP/TRN/WKI) be a priority to backfill into UAT?
+- Do the two environments compared in `docs/discovery/prod-vs-uat-gap-analysis.md` (OwnerCode `SIMLOGMNL` vs `MARCONSGN`) represent the same legal entity, or different business units?
+- Is there an existing integration/architecture doc set (owner map, governance rules) maintained elsewhere that this discovery work should align with, rather than rebuild? (`docs/discovery/integration-owner-map.md` and `docs/governance/` are still empty placeholders in this repo.)
+- Who owns/approves changes to Workflow Templates, and is there a formal change-control or UAT→Prod promotion process for them?
+- Priority call: should the eAdaptor inbound auth blocker (`docs/backlog/eadaptor-inbound-auth-401.md`) get resolved before continuing the workflow template audit, or can they run in parallel?
+- Is there a business deadline or driver (e.g. a customer/Boomi go-live) that should reorder any of this work?
+
+## Stakeholder questions — for team members / IT / CW admins
+
+Technical specifics that need someone with CW config access or institutional memory.
+
+- Does eAdaptor Next inbound Basic Auth for interchange `HONEASHKG` read from the interchange config's own password field, or from a separately linked CW user/login record? (Core blocker — see `docs/backlog/eadaptor-inbound-auth-401.md`.)
+- Are there multiple inbound config records for this interchange (per Application Code / Message Type / Sub Type), and which one actually backs the `/eAdaptorNext` endpoint we've been testing against?
+- ~~What's the correct UAT/Prod SQL Reporting DB hostname?~~ **Resolved.** `H56TRN.db.wisegrid.net` / `H56PRD.db.wisegrid.net`, confirmed 3 independent ways (CW's own "Output SQL security build info", Hari/data team, and CW's Help > About screen — see `docs/discovery/workflow-traffic-analysis-guide.md`). The old `h56trn.wisegrid.net`/`h56prd.wisegrid.net` (no `.db.`) are deprecated.
+- ~~Real password for `EnterpriseDbUser_OdysseyH56TRN_H56.Spencer.Nguyen`?~~ **Resolved 2026-08-28.** Connection confirmed working with admin + read + developer access; verified against `tmp/2026_08_28_db_build.log` (login has `CONNECT SQL`, `CONNECT` on `OdysseyH56TRN`, member of `cwRestrictedReaderRole`). Track B is unblocked — see `docs/discovery/workflow-traffic-analysis-guide.md`.
+- Where in CW UI can we actually see EDI message send/receive history (not just failures)? `Health Check > Failed EDI Interchange` turned out to only be an email-alert-recipient config, not a traffic log — need the real screen name/path.
+- Who last modified `H56 SHP, global, system` (the largest workflow template, 144 items in UAT / 99 in Prod), and do they know why its 22 Exception + 4 Finance + 14 Import items exist only in UAT and not Prod — pending promotion, or deliberate test-only scaffolding? (See "Section D" above.)
+- Does CW expose a change history/audit log for Workflow Template records we could check directly, instead of relying on memory?
+- Is `H56 SHP, SEA, DOM, global, system` (Prod-only, 99 items) actively used today? Should it be replicated into UAT?
+- Does the org already have a Power BI dashboard covering workflow/task volume or EDI message volume — would shortcut the traffic analysis in `docs/discovery/workflow-traffic-analysis-guide.md` entirely if it exists.
+- When these two XML exports were pulled, which company/login was used for each? That alone could resolve the `OwnerCode` question above immediately.
