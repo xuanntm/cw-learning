@@ -54,6 +54,32 @@ Once DNS/network is actually open:
 
 **Status:** host/database/login all confirmed — still blocked purely on DNS resolution from `vm-cwuat-001` (retested, still failing as of the latest check; see above). Same "Blocked on IT" options as 2026-08-23 apply. Section 1 (eAdaptor re-check) can be run immediately regardless.
 
+### Strategic pivot — use PROD, not UAT, for the actual traffic measurement
+
+You now have confirmed working access to **PROD** (`H56PRD.db.wisegrid.net`, credential from `tmp/work_history.log`) while UAT/TRN is still DNS-blocked. This is arguably better for Track B anyway: the whole point is measuring **real** usage, and UAT/TRN traffic is synthetic test activity that wouldn't answer "which templates do real jobs actually hit." Recommend running the traffic query against PROD directly rather than waiting on the UAT DNS fix — treat UAT connectivity as a separate, lower-priority thread.
+
+**Schema discovery already run against PROD (2026-08-28)** — largest tables by row count (`tmp/Query_1_202608282207.csv`) and a `Job%`-pattern table search (`tmp/Query_3_202608282215.csv`). Key findings:
+
+| Table | Rows | Relevance |
+|---|---|---|
+| `ProcessTasks` | 16.1M | Workflow task **instances** — the real table name (plural), correcting the earlier guess of `ProcessTask` in the runbook's Section 5 draft |
+| `ProcessTaskNotification` | 11.9M | Notification/trigger firings tied to tasks — DB-level equivalent of Track A's "how many times did a trigger fire" |
+| `ProcessJobTriggerLink` | 704K | Join table linking jobs ↔ triggers |
+| `ProcessTaskTemplate` | 522 | Template *definitions* (small dimension table — matches the 55/56-template XML exports already analyzed) |
+| `EDIMessage` / `EDIInterchange` | 1.5M / 1.4M | Raw EDI message traffic — also feeds Track A |
+| `JobHeader` | 104K | Core Job master record |
+
+`uat-bastion-runbook.ps1` Section 5 updated with the corrected table name (`ProcessTasks`). Column names (`SourceTemplateID`, `ActualDateUtc`, `PK`) are still guesses — next step is:
+```sql
+SELECT COLUMN_NAME, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME IN ('ProcessTasks', 'ProcessTaskTemplate', 'ProcessTaskNotification', 'ProcessJobTriggerLink')
+ORDER BY TABLE_NAME, ORDINAL_POSITION;
+```
+Once those are confirmed, finalize and run the Section 5 traffic query against PROD.
+
+**Caution:** this is PROD — keep everything `SELECT`-only, no writes/DDL. The schema queries above (`INFORMATION_SCHEMA`) are cheap/safe; if querying `ProcessTasks` itself (16M rows) add a date filter and consider `WITH (NOLOCK)` or off-peak timing to avoid load on a live system.
+
 ## Once both tracks have data
 
 Cross-reference: which templates show up as both high-job-usage (Track B) and high-trigger-firing (Track A)? Those are the "main flow" candidates — prioritize the audit checklist sections against those first, and treat the rest of the 55-56 templates as lower priority unless something else (like the empty+NFB risk already found) flags them independently of volume.

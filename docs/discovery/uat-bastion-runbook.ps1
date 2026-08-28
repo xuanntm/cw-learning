@@ -93,19 +93,23 @@ ORDER BY ORDINAL_POSITION;
 
 # ============================================================
 # SECTION 5 - draft template usage traffic query
-# EDIT the table/column names below using Section 4's real output before running.
+# Table name confirmed 2026-08-28 via real schema discovery (query against
+# INFORMATION_SCHEMA.TABLES on the PROD DB): it's `ProcessTasks` (plural),
+# not `ProcessTask`. Column names (SourceTemplateID, ActualDateUtc, PK) are
+# STILL GUESSES - confirm with INFORMATION_SCHEMA.COLUMNS on ProcessTasks
+# and ProcessTaskTemplate before running this for real.
 # ============================================================
-Write-Host "`n=== Section 5: draft template-usage traffic query (EDIT NAMES FIRST) ===" -ForegroundColor Cyan
+Write-Host "`n=== Section 5: draft template-usage traffic query (CONFIRM COLUMN NAMES FIRST) ===" -ForegroundColor Cyan
 $trafficQuery = @"
 SELECT
     tpl.Name AS TemplateName,
     COUNT(*) AS FiredCount
-FROM ProcessTask pt                                             -- CONFIRM real table name (Section 4)
-JOIN ProcessTaskTemplate tpl ON pt.SourceTemplateID = tpl.PK    -- CONFIRM real FK column name
+FROM ProcessTasks pt                                            -- confirmed real table name (2026-08-28)
+JOIN ProcessTaskTemplate tpl ON pt.SourceTemplateID = tpl.PK    -- CONFIRM real FK column name (still a guess)
 WHERE pt.ActualDateUtc >= DATEADD(month, -1, GETUTCDATE())      -- or CompletedTimeUtc, whichever is populated
 GROUP BY tpl.Name
 ORDER BY FiredCount DESC;
 "@
 Write-Host $trafficQuery -ForegroundColor Yellow
-Write-Host "Not auto-run. Once names are confirmed from Section 4, uncomment the line below (or paste the corrected query) and re-run." -ForegroundColor Yellow
+Write-Host "Not auto-run. Once column names are confirmed via INFORMATION_SCHEMA.COLUMNS, uncomment the line below (or paste the corrected query) and re-run." -ForegroundColor Yellow
 # sqlcmd -S "$SqlHost,$SqlPort" -d $SqlDatabase -U $SqlUser -P $sqlPwPlain -C -Q $trafficQuery
