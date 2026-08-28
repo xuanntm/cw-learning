@@ -140,9 +140,9 @@ WHERE cf.XV_ParentID = 'FC75F81D-42B4-427A-BE3B-000137592144'
 
 Expected: Step 1 confirms the pointer; Step 2 returns the full pivoted row including `ProductLine = 'FS'`; Step 3 shows the rule metadata behind that value.
 
-## Case study: `S00081401` — conclusion RETRACTED, pending re-check
+## Case study: `S00081401` — resolved 2026-08-29
 
-Investigated 2026-08-28/29. The original conclusion ("this job has no Shipment subtype record in either company") was built entirely on the wrong `JH_PK = JS_PK` join and is **not trustworthy** — it needs to be redone using `JH_ParentTableCode`/`JH_ParentID` before treating either outcome as fact. See the live investigation thread for the corrected re-check query; this doc will be updated once that's resolved.
+The original conclusion ("this job has no Shipment subtype record in either company") was wrong — it was built on the incorrect `JH_PK = JS_PK` join. Once corrected to use `JH_ParentTableCode`/`JH_ParentID` (per the correction above), the query returned real data. Confirms the corrected join pattern is the right one to use going forward for any Job-subtype lookup, including custom fields.
 
 ## Related files
 
