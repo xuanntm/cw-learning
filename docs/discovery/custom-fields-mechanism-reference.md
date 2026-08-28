@@ -147,4 +147,5 @@ The original conclusion ("this job has no Shipment subtype record in either comp
 ## Related files
 
 - `docs/discovery/glbbranch-table-reference.md` — `GlbBranch` reference; point 5 covers the `JH_JobNum` non-uniqueness finding that applies to any job-number-based lookup, including this one.
+- `docs/discovery/jobheader-table-reference.md` — `JobHeader` consolidated reference (indexing, the subtype-link correction, and the tuned full-year export query that uses this custom-fields mechanism in practice).
 - `docs/discovery/org-tables-schema-analysis.md`, `docs/discovery/prod-db-schema-analysis.md` — broader PROD schema analyses this builds on.

@@ -88,5 +88,6 @@ Every row below is `<Table>.<Column> → GlbBranch.GB_PK`. Grouped by functional
 ## Related files
 
 - `docs/discovery/org-tables-schema-analysis.md` — `OrgHeader`/`OrgCompanyData`/`GlbCompany`/`OrgMiscServ` schema analysis (two of `GlbBranch`'s own outbound FKs land in these tables).
+- `docs/discovery/jobheader-table-reference.md` — `JobHeader` consolidated reference: indexing (including the `NR_UX__JH_JobNum_JH_GC` DB-level proof of point 5), the point-6 subtype-link correction in full, and a tuned full-year job export query.
 - `docs/discovery/prod-db-schema-analysis.md` — broader PROD schema/size analysis.
 - `docs/workflow/workflow-templates-analysis.md` — Workflow Template analysis; cross-reference if branch-scoping of templates (`ProcessTaskTemplate.P0_GB`) becomes relevant.
