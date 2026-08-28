@@ -29,14 +29,21 @@ Measures: how many jobs actually got each Workflow Template applied. No confirme
 
 Treat the hostname as settled. Neither earlier guess (`H56PRD.wisegrid.net`/`H56TRN.wisegrid.net` without `.db.`) is correct — those are the deprecated names.
 
-**DNS/connectivity status — likely resolved as of 2026-08-28:** a connection attempt against `EnterpriseDbUser_OdysseyH56TRN_H56.Spencer.Nguyen` returned **"Login failed for user"** (SQL Server error 18456), not the earlier error 53/network-path-not-found. A "Login failed" response only happens after the client has already resolved the host, opened the TCP connection, and completed TDS handshake with SQL Server — so the VNet DNS gap documented below on 2026-08-23 appears to no longer be blocking. **Not 100% confirmed yet** — worth explicitly noting which tool (SSMS/DBeaver/sqlcmd) and which machine produced this error, to be sure it wasn't the CW app server (which sits inside the same VNet as the DB and may have always resolved it fine) rather than your own client machine.
+**DNS/connectivity status — still failing as of 2026-08-2x (this remains the live blocker):** direct tests from `vm-cwuat-001` (`10.10.11.4`), run in Git Bash, both fail at name resolution, not the port:
+- `(echo > /dev/tcp/H56TRN.db.wisegrid.net/1433)` → `bash: H56TRN.db.wisegrid.net: Name or service not known`
+- `Test-NetConnection -ComputerName H56TRN.db.wisegrid.net -Port 1433` → `WARNING: Name resolution ... failed`
 
-**Resolved 2026-08-28:** connection confirmed working — you have admin + read + developer access via `EnterpriseDbUser_OdysseyH56TRN_H56.Spencer.Nguyen`. Cross-checked against `tmp/2026_08_28_db_build.log` (CW's SQL security build output): this login has `CONNECT SQL` server-wide, `CONNECT` on `OdysseyH56TRN`, and membership in `cwRestrictedReaderRole` — consistent with the read access described. Note: the old Windows/AD login `PROD\H56.Spencer.Nguyen` is being decommissioned in that same build run (revoked, renamed `_TO_DELETE`, dropped) — use the SQL login going forward, not AD/Windows auth.
+So the VNet-level DNS gap documented on 2026-08-23 (both VMs use only Azure default DNS `168.63.129.16`, no route to whatever zone hosts `*.db.wisegrid.net`) is **still unresolved** on this VM — the "Blocked on IT" section below still applies as-is.
+
+**Access/permissions confirmed independently (not the same thing as connectivity):** per `tmp/2026_08_28_db_build.log`, the login `EnterpriseDbUser_OdysseyH56TRN_H56.Spencer.Nguyen` has `CONNECT SQL` server-wide, `CONNECT` on `OdysseyH56TRN`, and membership in `cwRestrictedReaderRole` — so once the DNS/network path is actually open, this login should work. The old Windows/AD login `PROD\H56.Spencer.Nguyen` is being decommissioned in that same build run (revoked, renamed `_TO_DELETE`, dropped) — use the SQL login, not AD/Windows auth, once reachable.
+
+**Open question:** an earlier "Login failed for user" result (2026-08-28) had suggested the network path was open — that's now contradicted by the DNS failures above. Need to confirm where that earlier result came from (which machine, which tool) before trusting it; it may have come from inside CW's app tier rather than a client machine, which wouldn't tell us anything about `vm-cwuat-001`'s own DNS.
 
 **Login naming convention confirmed** (multiple examples in `tmp/work_history.log`): `EnterpriseDbUser_Odyssey<ENV>_H56.<FirstName>.<LastName>` — each person appears to get their own DB login (seen for John.Lonzame, Oliver.Buchanan, and now Spencer.Nguyen), not a shared account. Note casing is inconsistent across notes (`EnterpriseDBUser` vs `EnterpriseDbUser`) — SQL Server logins are case-insensitive under the default collation so this likely doesn't matter, but use exactly what CW/IT gives you rather than retyping from memory.
 
-Once the password is confirmed:
+Once DNS/network is actually open:
 - Database/catalog name: `OdysseyH56TRN` (confirmed, 3 sources above).
+- Login: `EnterpriseDbUser_OdysseyH56TRN_H56.Spencer.Nguyen` — permissions already confirmed adequate (see above), so this should just work once reachable.
 - Auth type: SQL Server Authentication (plain username/password) based on the login format — not Windows/Azure AD auth, despite the VM logins themselves being `azuread\...`.
 
 **Steps (all in `docs/discovery/uat-bastion-runbook.ps1`, run from the VM):**
@@ -45,7 +52,7 @@ Once the password is confirmed:
 3. **Section 4** — discover the real table names (`INFORMATION_SCHEMA.TABLES` search for `ProcessTask%` / `%WorkflowTemplate%`) and their columns — don't trust guessed names.
 4. **Section 5** — draft traffic query (grouped count of task/trigger instances per template over the last month) — deliberately left commented out until Section 4 confirms real table/column names, to avoid running a query against wrong/guessed identifiers.
 
-**Status:** host/database confirmed, network reachability likely resolved — blocked only on the real password for `EnterpriseDbUser_OdysseyH56TRN_H56.Spencer.Nguyen` (see `docs/discovery/workflow-audit-checklist.md` interview log). Once that's in hand, run Sections 2–4 of the runbook end to end. Section 1 (eAdaptor re-check) can be run immediately regardless.
+**Status:** host/database/login all confirmed — still blocked purely on DNS resolution from `vm-cwuat-001` (retested, still failing as of the latest check; see above). Same "Blocked on IT" options as 2026-08-23 apply. Section 1 (eAdaptor re-check) can be run immediately regardless.
 
 ## Once both tracks have data
 
