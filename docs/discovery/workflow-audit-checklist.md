@@ -11,8 +11,8 @@ Answers gathered so far — re-ask if circumstances change (e.g. after checking 
 | Question | Answer (2026-08-23) |
 |---|---|
 | Is "BravoTran" a currently active customer/partner integration? | Not sure — needs checking (Section A1) |
-| Is "MVN" a currently operating branch/company code? | Not sure — needs checking (Section A2) |
-| Do OwnerCodes `SIMLOGMNL` (Non-Prod) and `MARCONSGN` (Prod) represent the same entity? | Not sure — needs checking (Section A3) |
+| Is "MVN" a currently operating branch/company code? | **Confirmed active (2026-08-28, via PROD DB query).** `GC_Code = MVN` → "Marine Connections (Vietnam) Co., Ltd.", branch `MSG` (Ho Chi Minh), has live active job data (`JH_IsActive = 1`). See Section A2. |
+| Do OwnerCodes `SIMLOGMNL` (Non-Prod) and `MARCONSGN` (Prod) represent the same entity? | **Lead found, not confirmed.** `MARCONSGN` plausibly abbreviates "Marine Connections" — the same MVN company just confirmed above. Not proven; ask the team to verify rather than assume. See Section A3. |
 | Your CW access level | Admin access to Workflow Templates — you can execute this whole checklist directly |
 
 ---
@@ -26,15 +26,15 @@ Everything downstream depends on these. Do this section before the rest.
   - If no organization record matches, check whether it's a Group (Maintain > User Admin > Group) or a Service/Message-type identifier instead of an Org — the name might refer to an EDI partner code rather than a CW Organization record.
   - **Record here:** _(fill in once checked)_
 
-- [ ] **A2. What is "MVN"?**
-  - In CW: Registry > Branches (or Maintain > User Admin > wherever Branch codes are set up). Search for a branch/company code `MVN`.
-  - Record: Active/Inactive, country, go-live date if visible.
-  - **Record here:** _(fill in once checked)_
+- [x] **A2. What is "MVN"?**
+  - **Confirmed 2026-08-28 via direct PROD DB query** (`GlbCompany` joined through `GlbBranch`): `GC_Code = MVN`, `GC_Name = "Marine Connections (Vietnam) Co., Ltd."`, branch `GB_Code = MSG` ("Ho Chi Minh"). Has active job data referencing it (`JH_IsActive = 1`), so this is a live, operating company — not dormant/deprecated.
+  - **Record here:** Active. Country: Vietnam. Branch: Ho Chi Minh (`MSG`). Still worth confirming go-live date and whether it should be a priority to backfill into UAT (original stakeholder question) — that part is unconfirmed.
 
 - [ ] **A3. Do `SIMLOGMNL` and `MARCONSGN` represent the same entity?**
   - These are the `OwnerCode` values from the two exports' headers — likely the login company code used when running the export, not necessarily the company the templates belong to.
-  - Check: does your CW login let you switch between both codes? If both are accessible from the same user login, they're almost certainly the same Enterprise instance viewed from different company contexts (normal). If only one is accessible to you, ask IT/admin to confirm both exports came from the same entity before trusting the Prod/Non-Prod diff as apples-to-apples.
-  - **Record here:** _(fill in once checked)_
+  - **New lead (2026-08-28):** `MARCONSGN` plausibly abbreviates "**MAR**ine **CONS**...**GN**" — i.e. Marine Connections, the same MVN company confirmed in A2 above. This is a plausible naming match, not a proven identity — the codes were only spotted as visually similar while investigating an unrelated job number, not verified against any CW config screen.
+  - Still need: does your CW login let you switch between both codes? If both are accessible from the same user login, they're almost certainly the same Enterprise instance viewed from different company contexts (normal). If only one is accessible to you, ask IT/admin to confirm both exports came from the same entity before trusting the Prod/Non-Prod diff as apples-to-apples.
+  - **Record here:** Lead: `MARCONSGN` ≈ Marine Connections (MVN)? — unconfirmed, ask the team.
 
 ---
 
