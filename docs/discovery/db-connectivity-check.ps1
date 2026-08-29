@@ -1,9 +1,8 @@
 <#
 .SYNOPSIS
   Run this on EACH of your 3 servers, in turn, to systematically test SQL Reporting DB
-  connectivity: PROD first (known-working baseline), then UAT (the target still blocked
-  on DNS as of the last check). Same script, same order, on every server — differences
-  in the results between servers are the diagnostic signal.
+  connectivity: PROD first (known-working baseline), then UAT. Same script, same order,
+  on every server — differences in the results between servers are the diagnostic signal.
 
 .DESCRIPTION
   Section 0 - report this server's outbound public IP (for correlating against whatever
@@ -13,7 +12,10 @@
               this already works from at least one known server, so a failure here on
               a *different* server tells you it's server/network-specific, not a PROD
               DB issue)
-  Section 2 - UAT: same three checks against H56TRN.db.wisegrid.net
+  Section 2 - UAT: same three checks against $UatSqlHost (see .VERSIONHISTORY 1.6 -
+              CW's team confirmed the correct hostname is H56TRN.db.test.wisegrid.net,
+              not H56TRN.db.wisegrid.net - the old DNS-failure evidence was against
+              the wrong hostname, not a real zone/peering gap)
   Section 3 - summary table to eyeball pass/fail at a glance, and to copy into
               docs/discovery/workflow-traffic-analysis-guide.md afterward
 
@@ -58,6 +60,11 @@
         buffered keystroke (e.g. a queued Enter from an earlier command) made it
         look like typing one character submitted the whole password prompt,
         observed 2026-08-29 on a shared server (10.10.11.4 / 10.10.11.7)
+  1.6 - updated default -UatSqlHost to H56TRN.db.test.wisegrid.net per CW team's
+        response to the DNS-failure ticket (docs/backlog/uat-db-dns-resolution-
+        failure.md) - the 3-for-3 DNS resolution failures logged under 1.4/1.5
+        were against the wrong hostname (missing ".test."), not a real zone/
+        VNet-peering gap as first theorized
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'ProdSqlPassword',
     Justification = 'Deliberate convenience param for a personal, non-shared server (user request 2026-08-29) - a SecureString param cannot be populated from a plain command-line arg, which is the whole point of skipping the Read-Host prompt. Default remains the interactive SecureString prompt.')]
@@ -73,14 +80,14 @@ param(
     [string]$ProdSqlUser = "",
     [string]$ProdSqlPassword = "",  # optional - skips the Read-Host prompt if set. Pass at invocation, never hardcode here.
 
-    [string]$UatSqlHost = "H56TRN.db.wisegrid.net",
+    [string]$UatSqlHost = "H56TRN.db.test.wisegrid.net",
     [int]$UatSqlPort = 1433,
     [string]$UatSqlDatabase = "OdysseyH56TRN",
     [string]$UatSqlUser = "EnterpriseDbUser_OdysseyH56TRN_H56.Spencer.Nguyen",
     [string]$UatSqlPassword = ""    # optional - skips the Read-Host prompt if set. Pass at invocation, never hardcode here.
 )
 
-$ScriptVersion = "1.5"
+$ScriptVersion = "1.6"
 $ProgressPreference = 'SilentlyContinue'  # suppress PS progress-bar UI (was leaving stale render artifacts in copied transcripts)
 
 Add-Type -AssemblyName "System.Data" -ErrorAction SilentlyContinue
