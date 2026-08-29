@@ -29,12 +29,14 @@ All active `OUT`-direction endpoints found. `IN`-direction rows are omitted here
 
 All 5 of PROD's confirmed `eAdaptorNext` endpoints (`docs/discovery/edi-communication-mechanism-reference.md`) exist in UAT under matching names, with `-uat` in the hostname (`bci-be-uat.benline.com` vs. `bci-be.benline.com`) — clean environment separation, and all 5 are realistically in scope for QA testing.
 
-## The BravoTran risk — now triangulated from two independent signals
+## The BravoTran picture — updated 2026-08-29, corrected from "fully dormant"
 
 - `docs/discovery/workflow-runtime-check.sql` (2026-08-29): `BravoTran` workflow templates show `ActualProcessInstanceCount = 0` in UAT — no job has ever matched them.
-- This integration-level check (same date): the `BravoTrans` endpoint itself shows **0 messages in the last 30 days**.
+- This integration-level check, 30-day window (same date): the `BravoTrans` endpoint shows 0 messages in the last 30 days.
+- **Correction (later same day, `docs/discovery/uat-edi-configuration-collector.sql`):** the 90-day window shows **15 real messages** for BravoTran (and 14/2 for Kestrel/SAPI, the other two endpoints that looked dormant in the 30-day check) — these integrations went quiet in the last 30 days, they were not unused. Only `VNPT` is genuinely zero across both windows.
+- **Also found:** `EDICommunicationsMode` (a separate, per-Organization EDI routing layer) has real BravoTran routing configured for 4 distinct real Organizations, all North American entities — `BENLINCDN`, `BENLINYVR`, `PACOCECDN`, `PACOCEUSA`. Strongly suggests BravoTran is a real, regionally-scoped (North America) integration partner, not orphaned config.
 
-Two different data sources (workflow engine vs. raw EDI traffic) agree: BravoTran integration is currently dormant in UAT. Still pending your team discussion on what "BravoTran" actually is and whether this matters for PROD — see `docs/discovery/workflow-audit-checklist.md` Section A1/B.
+Full detail in `docs/discovery/workflow-audit-checklist.md` Section A1 — that file has the complete, current evidence base for your team discussion.
 
 ## UAT traffic volume — set QA expectations
 
