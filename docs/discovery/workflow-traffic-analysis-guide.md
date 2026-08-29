@@ -84,9 +84,11 @@ Once those are confirmed, finalize and run the Section 5 traffic query against P
 
 You now have 3 servers to test from — working theory is that IP whitelisting is per-server (only some egress IPs are allowed), not a blanket VNet-wide DNS gap. Run `docs/discovery/db-connectivity-check.ps1` identically on each server (it tests PROD first as a known-working baseline, then UAT) and record each run's result row here:
 
-| Server | Public IP | PROD DNS | UAT DNS | UAT TCP | UAT Login |
-|---|---|---|---|---|---|
-| _(fill in per server)_ | | | | | |
+| Server | Script Ver | Public IP | PROD DNS | UAT DNS | UAT TCP | UAT Login |
+|---|---|---|---|---|---|---|
+| server1 (private IP `10.14.8.29`) | 1.0 (pre-timeout-fix) | `20.247.185.174` (matches `docs/config/uat-environment-overview.md`'s recorded "Virtual Environment IP") | OK (CNAME chain to `au2wpreadonly440l1.wisegrid.net` / `203.62.211.152` — confirms PROD's Reporting DB endpoint is a dedicated read-only replica) | _(pending — see note)_ | _(pending)_ | _(pending)_ |
+
+**Note on server1 (2026-08-29):** PROD DNS+TCP both `OK`, but `sqlcmd`'s login step hung indefinitely (5+ min, no error) — **confirmed tool-specific, not network**: DBeaver on the same machine connected and queried PROD instantly. Likely a TLS/negotiation mismatch between the legacy ODBC-based `sqlcmd` (v15.0.1300.359, relies on the OS SChannel TLS stack) and this endpoint, vs. DBeaver's independent JDBC TLS stack. `db-connectivity-check.ps1` now has a 20s login timeout (`-l 20`) added so future runs fail fast instead of hanging — but **treat `sqlcmd`'s login result as unreliable on this box going forward; use DBeaver to independently verify any server where `sqlcmd` fails/times out but DNS+TCP succeed**, before concluding a server has no path to the DB.
 
 If any server shows UAT DNS `OK`, that's the one to standardize on for Track B going forward — and its public IP is what confirms the whitelist theory (compare against whatever IP(s) IT has on file as whitelisted, if that list is available). If all 3 show UAT DNS `FAIL` identically, that points back to the earlier VNet-wide DNS gap theory instead (Azure default DNS `168.63.129.16` with no route to the `*.db.wisegrid.net` zone) rather than a per-server whitelist issue — worth ruling PROD's own DNS success in/out as a control either way, since PROD resolves fine from wherever it's already been tested from.
 
