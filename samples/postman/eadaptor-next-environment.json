@@ -1,0 +1,31 @@
+{
+  "id": "b6e1a3d2-1c4f-4a2e-9d3a-eadaptornextenv",
+  "name": "eAdaptor Next - UAT",
+  "values": [
+    {
+      "key": "eadaptorHost",
+      "value": "H56TRNservices.wisegrid.net",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "eadaptorPath",
+      "value": "/eAdaptorNext",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "eadaptorUsername",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "eadaptorPassword",
+      "value": "",
+      "type": "secret",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}

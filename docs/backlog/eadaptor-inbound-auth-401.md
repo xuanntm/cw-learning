@@ -14,6 +14,8 @@
 
 **`HONEASHKG` authenticates successfully against the legacy `/eadaptor` endpoint.** That fully explains everything found this session: `HONEASHKG` was never in `EDICommunicationAuth`/`EDICommunicationPartyConfig`/`EDICommunicationParty` (checked exhaustively — full inventory, CDC change history attempted) because it was never part of that system at all. The password reset done via "Registry → EDI Messaging → eAdaptor Next → Inbound" was editing a **new-implementation** record unrelated to `HONEASHKG`'s actual (legacy) credential store — which is why the reset never changed the `401` result against `/eAdaptorNext`: that was always testing the wrong system for this interchange.
 
+**Confirmed via `eadaptor-http-check.ps1 -EAdaptorPath "/eadaptor"` (2026-08-29):** `POST /eadaptor` with the `HONEASHKG` credential returns **`400 Bad Request`, not `401 Unauthorized`.** `400` means the request passed authentication and failed only on content (an intentionally empty test body, which the legacy endpoint validates — unlike `/eAdaptorNext`, which rejected the same empty body at the auth stage before even reaching content validation). This is direct, positive confirmation that the credential is valid and the legacy endpoint accepts it — the ticket's original symptom is fully explained and resolved, not just theorized.
+
 **Everything below this point is the investigation trail that led here — kept for reference, not because the mystery is still open.**
 
 ## Environment

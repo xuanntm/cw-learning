@@ -1,0 +1,123 @@
+{
+  "info": {
+    "name": "CW eAdaptor Next - Model Integration",
+    "description": "Builds up from reachability to a real message submission, modeled against H56_TRN_CW2SAGE (a known-working UAT integration - see docs/discovery/uat-integration-verification-summary.md). Use with the eadaptor-next-environment.json environment. Password is stored as a Postman 'secret' variable type - never commit a populated environment file with real credentials.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0 - Reachability check (GET root)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://{{eadaptorHost}}/",
+          "protocol": "https",
+          "host": ["{{eadaptorHost}}"],
+          "path": [""]
+        },
+        "description": "Confirms the host is reachable and serving the eAdaptor app. Expect 200 (landing page) - NOT the submission endpoint itself, so a real message here isn't expected to succeed."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Host is reachable (2xx or 405, not a connection error)', function () {",
+              "    pm.expect([200, 405]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 - Auth check (empty body)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/xml" }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            { "key": "username", "value": "{{eadaptorUsername}}", "type": "string" },
+            { "key": "password", "value": "{{eadaptorPassword}}", "type": "string" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "https://{{eadaptorHost}}{{eadaptorPath}}",
+          "protocol": "https",
+          "host": ["{{eadaptorHost}}"],
+          "path": ["{{eadaptorPath}}"]
+        },
+        "description": "Empty body, real credentials. Expected results, per docs/backlog/eadaptor-inbound-auth-401.md: 401 = credential/config problem (wrong endpoint or bad password). 400 = auth succeeded, body content rejected (this is the 'good' result for an empty-body test - it means the credential works)."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Auth succeeded (400 = passed auth, failed on empty body - the expected good result here)', function () {",
+              "    pm.expect(pm.response.code).to.eql(400);",
+              "});",
+              "pm.test('NOT 401 - if this fails, check docs/backlog/eadaptor-inbound-auth-401.md before assuming a new bug', function () {",
+              "    pm.expect(pm.response.code).to.not.eql(401);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - Submit real message (fill in body)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/xml" },
+          { "key": "Content-Type", "value": "application/xml" }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            { "key": "username", "value": "{{eadaptorUsername}}", "type": "string" },
+            { "key": "password", "value": "{{eadaptorPassword}}", "type": "string" }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "<!-- REPLACE THIS WITH A REAL PAYLOAD.\n     Do not invent one - pull a real historical message using\n     docs/discovery/eadaptor-next-sample-payload.sql (targets the known-\n     working H56_TRN_CW2SAGE integration), REDACT any customer/job/address\n     data, save it to samples/xml/eadaptor-next-sample-payload.xml, then\n     paste the redacted content here. -->",
+          "options": { "raw": { "language": "xml" } }
+        },
+        "url": {
+          "raw": "https://{{eadaptorHost}}{{eadaptorPath}}",
+          "protocol": "https",
+          "host": ["{{eadaptorHost}}"],
+          "path": ["{{eadaptorPath}}"]
+        },
+        "description": "The actual integration test - a real (redacted) message body against a real credential. Success here is the model-integration reference point for standing up future eAdaptor Next integrations."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Message accepted (2xx)', function () {",
+              "    pm.expect(pm.response.code).to.be.within(200, 299);",
+              "});",
+              "console.log('After a 2xx here, verify via DB: see docs/discovery/eadaptor-http-check.ps1 Section 3 for the EDIMessage query pattern.');"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": []
+}
