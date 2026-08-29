@@ -16,6 +16,12 @@
 
 **Confirmed via `eadaptor-http-check.ps1 -EAdaptorPath "/eadaptor"` (2026-08-29):** `POST /eadaptor` with the `HONEASHKG` credential returns **`400 Bad Request`, not `401 Unauthorized`.** `400` means the request passed authentication and failed only on content (an intentionally empty test body, which the legacy endpoint validates — unlike `/eAdaptorNext`, which rejected the same empty body at the auth stage before even reaching content validation). This is direct, positive confirmation that the credential is valid and the legacy endpoint accepts it — the ticket's original symptom is fully explained and resolved, not just theorized.
 
+**Further confirmed by the official WiseTech "eAdaptor Next Developer's Guide" (`tmp/01_eAdaptor_Next_Developer_Guide.pdf`, v1.4), read 2026-08-29** — this explains the mystery at an even deeper level than "wrong endpoint":
+
+- Section 2.2: the `Registry → EDI Messaging → eAdaptor → Inbound → eAdaptor Service URL` field — the exact screen where the original password reset was performed — is **explicitly documented as reference-only**: *"It does not affect eAdaptor functionality but serves as a convenient point of reference."* The reset was never going to change anything, on either endpoint, regardless of the legacy/modern confusion.
+- Section 2.3: **real authentication configuration lives at `Maintain → EDI Messaging → EDI Client Details`** — a completely different top-level menu (`Maintain`, not `Registry`) that was never touched during the original troubleshooting.
+- This also confirms the modern implementation's UI-facing name is **"EDI Client"** — matches `EDICommunicationParty`/`Config`/`Auth` conceptually (see `docs/discovery/edi-communication-mechanism-reference.md`), and is the same module the user later asked about when it wasn't visible under `EDI Messaging` (see the "eAdaptor Next module not visible" question — check `Maintain`, not `Registry`, before assuming a permissions issue).
+
 **Everything below this point is the investigation trail that led here — kept for reference, not because the mystery is still open.**
 
 ## Environment

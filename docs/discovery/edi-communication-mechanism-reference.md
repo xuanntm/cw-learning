@@ -13,6 +13,8 @@ Confirmed 2026-08-29 (`docs/backlog/eadaptor-inbound-auth-401.md`): CargoWise ha
 
 **Before assuming a given interchange/party is represented in the tables below, confirm which endpoint it actually uses** — searching exhaustively through `EDICommunicationAuth`/`EDICommunicationPartyConfig`/`GlbExternalPassword`/`EDIInterchange` for a legacy interchange code will correctly find nothing, because it isn't there. This document does not yet cover the legacy implementation's actual storage mechanism — that's open territory if it's ever needed.
 
+**UI terminology (confirmed 2026-08-29 via the official WiseTech "eAdaptor Next Developer's Guide," `tmp/01_eAdaptor_Next_Developer_Guide.pdf`):** the modern implementation's config screen is called **"EDI Client"** in the CW UI, found at **`Maintain → EDI Messaging → EDI Client Details`** — not under `Registry`. `EDICommunicationParty`/`EDICommunicationPartyConfig`/`EDICommunicationAuth` are its DB-level tables. See `docs/discovery/eadaptor-next-developer-guide-summary.md` for the full official reference.
+
 Source data: `tmp/EDI_structure_202608291114.csv` (columns), `tmp/EDI_constraints_202608291119.csv` (real FKs), `tmp/EDI_last_30_days_202608291120.csv` (status breakdown), `tmp/EDI_communication_v2_202608291126.csv` (EDICommunication* family columns), `tmp/EDI_communication_eadaptor_202608291128.csv` (real PROD endpoint config sample) — all gitignored, not tracked.
 
 ## The table family
