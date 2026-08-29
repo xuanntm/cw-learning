@@ -2,6 +2,17 @@
 
 Environment: PROD (`H56PRD.db.wisegrid.net` / `OdysseyH56PRD`) unless noted. Consolidates the `EDIMessage`/`EDIInterchange`/`EDICommunication*` table family discovered while chasing `docs/backlog/eadaptor-inbound-auth-401.md` — written up as a standing reference since these tables will back any future EDI traffic/reliability reporting, not just the auth investigation.
 
+## ⚠️ This whole document describes the MODERN implementation only — a separate legacy one exists too
+
+Confirmed 2026-08-29 (`docs/backlog/eadaptor-inbound-auth-401.md`): CargoWise has **two separate eAdaptor endpoints/implementations** on the same environment:
+
+| Endpoint | Implementation | Config mechanism |
+|---|---|---|
+| `.../eAdaptorNext` | Modern ("Next") | Everything in this document — `EDICommunicationParty`/`EDICommunicationPartyConfig`/`EDICommunicationAuth`, per-client named parties (Boomi, Kestrel, Sage, SAPI, VNPT, BravoTrans, etc.) |
+| `.../eadaptor` (no "Next") | Legacy (old) | A **different** mechanism, not yet mapped — traditional interchange-style codes (e.g. `HONEASHKG`) live here, not in any table below |
+
+**Before assuming a given interchange/party is represented in the tables below, confirm which endpoint it actually uses** — searching exhaustively through `EDICommunicationAuth`/`EDICommunicationPartyConfig`/`GlbExternalPassword`/`EDIInterchange` for a legacy interchange code will correctly find nothing, because it isn't there. This document does not yet cover the legacy implementation's actual storage mechanism — that's open territory if it's ever needed.
+
 Source data: `tmp/EDI_structure_202608291114.csv` (columns), `tmp/EDI_constraints_202608291119.csv` (real FKs), `tmp/EDI_last_30_days_202608291120.csv` (status breakdown), `tmp/EDI_communication_v2_202608291126.csv` (EDICommunication* family columns), `tmp/EDI_communication_eadaptor_202608291128.csv` (real PROD endpoint config sample) — all gitignored, not tracked.
 
 ## The table family

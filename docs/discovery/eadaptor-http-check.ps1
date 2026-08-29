@@ -15,6 +15,16 @@
               EDIInterchange for a row matching this test's timestamp)
 
 .NOTES
+  - IMPORTANT (found 2026-08-29): there are TWO separate eAdaptor
+    implementations on this environment, at two different paths -
+    /eAdaptorNext (modern, per-client EDICommunication* config - see
+    docs/discovery/edi-communication-mechanism-reference.md) and /eadaptor
+    (legacy, different mechanism, not yet mapped). Traditional
+    interchange-style codes like HONEASHKG belong to the LEGACY /eadaptor
+    path, not /eAdaptorNext - confirm which implementation your interchange
+    actually uses via -EAdaptorPath before assuming a 401 means a real
+    problem (see docs/backlog/eadaptor-inbound-auth-401.md for the full
+    story - an entire investigation chased this exact confusion).
   - -EAdaptorHost defaults to the UAT host confirmed in
     docs/backlog/eadaptor-inbound-auth-401.md (H56TRNservices.wisegrid.net).
     The PROD equivalent hostname has NOT been confirmed in this repo - do
@@ -22,6 +32,9 @@
     support ticket to resolve; the eAdaptor service host could have a
     similar naming surprise). Confirm with the team/CW's own Help > About
     screen before testing against PROD.
+  - -EAdaptorPath defaults to "/eAdaptorNext" (modern). Pass -EAdaptorPath
+    "/eadaptor" to test the legacy implementation instead - e.g. for
+    HONEASHKG specifically.
   - -EAdaptorUser defaults to the interchange username already confirmed
     correct in the backlog file. Password is NOT defaulted - you must
     supply it, and it is never written to this file.
@@ -40,6 +53,10 @@
         cloudflare.net - unlike the SQL DB host's direct private IP, so
         the eAdaptor Next service is public-facing/CDN-fronted while the
         Reporting DB is VNet-only)
+  1.1 - documented the legacy /eadaptor vs modern /eAdaptorNext distinction
+        (docs/backlog/eadaptor-inbound-auth-401.md resolved 2026-08-29) -
+        no functional change, -EAdaptorPath already supported overriding
+        the path, just wasn't documented as the fix for this exact case
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'EAdaptorPassword',
     Justification = 'Same deliberate convenience trade-off as db-connectivity-check.ps1 - intended for use on a personal, non-shared server. Pass at invocation, never hardcode.')]
@@ -52,7 +69,7 @@ param(
     [int]$TimeoutSec = 20
 )
 
-$ScriptVersion = "1.0"
+$ScriptVersion = "1.1"
 $ProgressPreference = 'SilentlyContinue'
 
 Write-Host "`n=== eAdaptor Next HTTP check (script version: $ScriptVersion) ===" -ForegroundColor Magenta
