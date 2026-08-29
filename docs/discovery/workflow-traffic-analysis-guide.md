@@ -80,6 +80,16 @@ Once those are confirmed, finalize and run the Section 5 traffic query against P
 
 **Caution:** this is PROD — keep everything `SELECT`-only, no writes/DDL. The schema queries above (`INFORMATION_SCHEMA`) are cheap/safe; if querying `ProcessTasks` itself (16M rows) add a date filter and consider `WITH (NOLOCK)` or off-peak timing to avoid load on a live system.
 
+## Multi-server UAT connectivity retest (2026-08-29+)
+
+You now have 3 servers to test from — working theory is that IP whitelisting is per-server (only some egress IPs are allowed), not a blanket VNet-wide DNS gap. Run `docs/discovery/db-connectivity-check.ps1` identically on each server (it tests PROD first as a known-working baseline, then UAT) and record each run's result row here:
+
+| Server | Public IP | PROD DNS | UAT DNS | UAT TCP | UAT Login |
+|---|---|---|---|---|---|
+| _(fill in per server)_ | | | | | |
+
+If any server shows UAT DNS `OK`, that's the one to standardize on for Track B going forward — and its public IP is what confirms the whitelist theory (compare against whatever IP(s) IT has on file as whitelisted, if that list is available). If all 3 show UAT DNS `FAIL` identically, that points back to the earlier VNet-wide DNS gap theory instead (Azure default DNS `168.63.129.16` with no route to the `*.db.wisegrid.net` zone) rather than a per-server whitelist issue — worth ruling PROD's own DNS success in/out as a control either way, since PROD resolves fine from wherever it's already been tested from.
+
 ## Once both tracks have data
 
 Cross-reference: which templates show up as both high-job-usage (Track B) and high-trigger-firing (Track A)? Those are the "main flow" candidates — prioritize the audit checklist sections against those first, and treat the rest of the 55-56 templates as lower priority unless something else (like the empty+NFB risk already found) flags them independently of volume.
