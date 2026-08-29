@@ -53,6 +53,11 @@
         software on server1) — login test now uses System.Data.SqlClient
         (built into .NET Framework, zero install) with an async CancellationToken
         for the hard timeout instead of process-kill
+  1.5 - flush the console input buffer immediately before each password prompt
+        (Clear-StaleConsoleInput) - fixes a jump-box/RDP artifact where a stale
+        buffered keystroke (e.g. a queued Enter from an earlier command) made it
+        look like typing one character submitted the whole password prompt,
+        observed 2026-08-29 on a shared server (10.10.11.4 / 10.10.11.7)
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'ProdSqlPassword',
     Justification = 'Deliberate convenience param for a personal, non-shared server (user request 2026-08-29) - a SecureString param cannot be populated from a plain command-line arg, which is the whole point of skipping the Read-Host prompt. Default remains the interactive SecureString prompt.')]
@@ -75,12 +80,23 @@ param(
     [string]$UatSqlPassword = ""    # optional - skips the Read-Host prompt if set. Pass at invocation, never hardcode here.
 )
 
-$ScriptVersion = "1.4"
+$ScriptVersion = "1.5"
 $ProgressPreference = 'SilentlyContinue'  # suppress PS progress-bar UI (was leaving stale render artifacts in copied transcripts)
 
 Add-Type -AssemblyName "System.Data" -ErrorAction SilentlyContinue
 
 $results = @()
+
+function Clear-StaleConsoleInput {
+    # Defensive fix for a known jump-box/RDP artifact: leftover buffered keystrokes
+    # (e.g. a stray Enter queued from an earlier command) sitting in the console
+    # input queue before Read-Host starts can make it look like typing ONE character
+    # submits the whole password - the queued line was already "complete", the new
+    # keystroke just triggers it to be consumed. Wrapped in try/catch since
+    # FlushInputBuffer() isn't available in every host (e.g. some redirected/remoting
+    # contexts) - harmless no-op there.
+    try { $Host.UI.RawUI.FlushInputBuffer() } catch {}
+}
 
 function Invoke-SqlConnectionTest {
     param(
@@ -153,6 +169,7 @@ if ($ProdSqlUser -ne "") {
     if ($ProdSqlPassword -ne "") {
         $prodPwSecure = ConvertTo-SecureString $ProdSqlPassword -AsPlainText -Force
     } else {
+        Clear-StaleConsoleInput
         $prodPwSecure = Read-Host "Enter SQL login password for PROD user '$ProdSqlUser'" -AsSecureString
     }
     Write-Host "Testing SQL connection (cancels at ${LoginTimeoutSec}s if it hangs)..." -ForegroundColor DarkGray
@@ -183,6 +200,7 @@ if ($uatDnsOk -and $uatTcp.TcpTestSucceeded) {
     if ($UatSqlPassword -ne "") {
         $uatPwSecure = ConvertTo-SecureString $UatSqlPassword -AsPlainText -Force
     } else {
+        Clear-StaleConsoleInput
         $uatPwSecure = Read-Host "Enter SQL login password for UAT user '$UatSqlUser'" -AsSecureString
     }
     Write-Host "Testing SQL connection (cancels at ${LoginTimeoutSec}s if it hangs)..." -ForegroundColor DarkGray
