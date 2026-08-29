@@ -7,13 +7,13 @@
 - Environment: UAT/TRN (H56TRN)
 - Interchange / inbound username: `HONEASHKG`
 - Inbound endpoint under test: `https://H56TRNservices.wisegrid.net/eAdaptorNext`
-- Tested from: local dev sandbox (non-whitelisted IP) and CW VM `10.10.11.4` (whitelisted)
+- Tested from: local dev sandbox (non-whitelisted IP), CW VM `10.10.11.4` (whitelisted), and server1 (private, `20.247.185.174`) via `docs/discovery/eadaptor-http-check.ps1` (2026-08-29) — **3 independent sources, identical `401`**
 
 ## Problem
 `POST /eAdaptorNext` with Basic Auth returns `401 Unauthorized`, both before and after resetting the password on the eAdaptor Next inbound config screen (Registry → EDI Messaging → eAdaptor Next → Inbound). Username is unchanged; the password reset was confirmed saved in the CW UI.
 
 ## Ruled out so far
-- **Network / IP whitelist** — request reaches the app cleanly from both a non-whitelisted IP and the whitelisted VM; identical `401` from both, and `GET` on the host root returns `200` with real app content. Not a network-level block.
+- **Network / IP whitelist** — request reaches the app cleanly from both a non-whitelisted IP and the whitelisted VM; identical `401` from both, and `GET` on the host root returns `200` with real app content. Not a network-level block. **Reinforced 2026-08-29:** a 3rd independent server (private, different public IP, reached via Cloudflare CDN — `au-1-t.eadaptor.wisegrid.net.cdn.cloudflare.net`) reproduces the exact same `401`. Three different source IPs, three identical results — this is very unlikely to be network/whitelist-related at this point.
 - **Wrong endpoint path** — the bare host root explicitly returns `405 Method Not Allowed` (`Allow: GET`), confirming it's just a landing page, not the inbound submission endpoint. `/eAdaptorNext` is the correct path — it's the one that runs an auth check at all.
 - **Wrong username** — decoded directly from the Basic Auth header configured in CW; confirmed `HONEASHKG`, unchanged after the reset.
 - **Malformed request** — an initial `411 Length Required` (missing `Content-Length` on an empty POST) was resolved by sending an explicit empty body; the `401` shown above is from a well-formed request that reached the real auth check.
@@ -46,8 +46,12 @@ EDICommunicationPartyConfig (ECC)  -- one row per configured endpoint
 2. Are there multiple inbound config records for this interchange (per Application Code / Message Type / Sub Type — see `docs_for_thanh/foundations/05_EDI_menu_note.txt`), and is `/eAdaptorNext` bound to a different record than the one that was edited?
 3. Any known caching/propagation delay for credential changes on this service host longer than a few minutes?
 
+## DB-side diagnosis exhausted (2026-08-29)
+
+Checked whether the rejected `401` attempt left any trace in `EDIMessage` (query in `docs/discovery/eadaptor-http-check.ps1` Section 3, run against UAT for the exact test window) — **zero rows returned.** The auth check rejects before any message row is created, i.e. it happens at the authentication/gateway layer, ahead of message ingestion. There is no further self-service DB angle left to check — the mechanism (`ECC`→`ECA`), credential structure, and reachability (now 3 independent source servers, all identical `401`) are all confirmed; what remains needs either server-side auth/middleware logs or direct team confirmation of which `ECC`/`ECA` record `HONEASHKG` actually resolves to.
+
 ## Requested action
-Confirm which config object the `/eAdaptorNext` Basic Auth check actually authenticates against, and help verify/reset the credential at the correct source.
+Confirm which config object the `/eAdaptorNext` Basic Auth check actually authenticates against, and help verify/reset the credential at the correct source. **This now needs the team/IT directly — no further progress is possible from this side without server-side visibility.**
 
 ## Reproduction
 ```
