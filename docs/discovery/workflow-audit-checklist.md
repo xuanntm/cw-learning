@@ -21,10 +21,10 @@ Answers gathered so far — re-ask if circumstances change (e.g. after checking 
 
 Everything downstream depends on these. Do this section before the rest.
 
-- [ ] **A1. What is "BravoTran"?**
-  - In CW: Maintain > Master Data > Organizations, search `BravoTran`. Record: Organization type (customer/carrier/agent), Active/Inactive status, any linked branches.
-  - If no organization record matches, check whether it's a Group (Maintain > User Admin > Group) or a Service/Message-type identifier instead of an Org — the name might refer to an EDI partner code rather than a CW Organization record.
-  - **Record here:** _(fill in once checked)_
+- [/] **A1. What is "BravoTran"?**
+  - **New evidence 2026-08-29 (PROD DB, `tmp/EDI_communication_eadaptor_202608291128.csv`):** a real, currently-configured outbound eAdaptor Next endpoint exists in PROD: `EDICommunicationPartyConfig.ECC_Endpoint = https://bci-be.benline.com/api/EadaptorNext/BravoTrans`, `Direction = OUT`, `Status = REQ` (code meaning not yet decoded). Confirms "BravoTrans" is real, active infrastructure — not a dormant/orphaned name. Still unconfirmed: whether it's currently *receiving* traffic (i.e. whether any live job actually matches the empty+`NFB` Universal templates in Section B below) — this config record existing doesn't by itself prove that.
+  - Still worth doing in CW: Maintain > Master Data > Organizations, search `BravoTran`, to get the business-side record (org type, active status, linked branches) alongside this technical config record.
+  - **Record here:** Confirmed real/active endpoint config in PROD (`ECC_Status = REQ`, meaning TBD). Organization-record lookup still pending.
 
 - [x] **A2. What is "MVN"?**
   - **Confirmed 2026-08-28 via direct PROD DB query** (`GlbCompany` joined through `GlbBranch`): `GC_Code = MVN`, `GC_Name = "Marine Connections (Vietnam) Co., Ltd."`, branch `GB_Code = MSG` ("Ho Chi Minh"). Has active job data referencing it (`JH_IsActive = 1`), so this is a live, operating company — not dormant/deprecated.

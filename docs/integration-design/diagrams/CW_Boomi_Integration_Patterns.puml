@@ -1,0 +1,189 @@
+@startuml Pattern_A_Direct
+title Pattern A — Direct Point-to-Point (No Middleware, baseline)
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+rectangle "CargoWise" as CW {
+  component "eAdaptor Next\n(Inbound / Outbound)" as EAN
+}
+cloud "Client System" as CLIENT
+
+CW --> CLIENT : Outbound XML (HTTP POST)
+CLIENT --> CW : Inbound XML (HTTP POST)
+
+note bottom of CW
+Client must speak CW's native
+XML dialect directly — no
+translation layer available.
+end note
+
+@enduml
+
+@startuml Pattern_B_PassThrough
+title Pattern B — Boomi as Pass-Through Relay
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+rectangle "CargoWise" as CW {
+  component "eAdaptor Next" as EAN
+}
+rectangle "Boomi" as BOOMI {
+  component "HTTP Listener" as LISTEN
+  component "Forward As-Is\n(protocol translation only)" as FWD
+}
+cloud "Client System" as CLIENT
+
+CW --> LISTEN : Outbound XML
+LISTEN --> FWD
+FWD --> CLIENT : Same payload,\ndifferent transport/protocol
+CLIENT --> BOOMI : Response
+BOOMI --> CW : Ack / status
+
+note bottom of BOOMI
+No business logic, no field
+mapping — Boomi only bridges
+protocol/transport differences
+(e.g. HTTPS -> SFTP -> AS2).
+end note
+
+@enduml
+
+@startuml Pattern_C_Transform
+title Pattern C — Boomi as Transformation / Mapping Layer
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+rectangle "CargoWise" as CW {
+  component "eAdaptor Next" as EAN
+}
+rectangle "Boomi" as BOOMI {
+  component "HTTP Listener" as LISTEN
+  component "Field Mapping\nCW XML -> Client format" as MAP
+  component "Format Conversion\nXML <-> JSON / EDI / flat file" as CONV
+  component "Validation" as VAL
+}
+cloud "Client System" as CLIENT
+
+CW --> LISTEN : Outbound XML (CW schema)
+LISTEN --> MAP
+MAP --> CONV
+CONV --> VAL
+VAL --> CLIENT : Client-native format
+CLIENT --> BOOMI : Response (client format)
+BOOMI --> CW : Mapped ack / status
+
+note bottom of BOOMI
+Boomi owns the mapping — CW
+and Client schemas never need
+to match. Most common pattern
+for external client integrations.
+end note
+
+@enduml
+
+@startuml Pattern_D_Orchestration
+title Pattern D — Boomi as Orchestration Hub (multi-system)
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+rectangle "CargoWise" as CW {
+  component "eAdaptor Next" as EAN
+}
+rectangle "Boomi" as BOOMI {
+  component "HTTP Listener" as LISTEN
+  component "Business Rules Engine" as RULES
+  component "Process Orchestration\n(stateful, multi-step)" as ORCH
+  component "Retry / Error Queue" as RETRY
+  component "Monitoring Dashboard" as MON
+}
+cloud "Client A" as CLIENTA
+rectangle "ERP" as ERP
+rectangle "WMS" as WMS
+
+CW --> LISTEN : Outbound XML
+LISTEN --> RULES
+RULES --> ORCH
+ORCH --> CLIENTA : Deliver
+ORCH --> ERP : Sync
+ORCH --> WMS : Sync
+ORCH --> RETRY : On failure
+RETRY --> ORCH : Retry per policy
+ORCH --> MON : Status / metrics
+
+note bottom of BOOMI
+One CW event fans out to N
+downstream systems with its
+own business logic, retries,
+and observability. Highest
+capability, highest complexity.
+end note
+
+@enduml
+
+@startuml Pattern_E_FileBased
+title Pattern E — File / Poll-Based Exchange (decoupled, batch)
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+rectangle "CargoWise" as CW {
+  component "eAdaptor Next\n(writes file, no live call)" as EAN
+}
+database "Shared SFTP / AS2\nDrop Location" as SFTP
+rectangle "Boomi" as BOOMI {
+  component "Scheduled Poller" as POLL
+  component "Process on Pickup" as PROC
+}
+cloud "Client System" as CLIENT
+
+CW --> SFTP : Write XML file\n(scheduled or event-triggered)
+POLL --> SFTP : Poll on interval
+SFTP --> POLL : New file(s) found
+POLL --> PROC
+PROC --> CLIENT : Deliver (push or\nclient-side pickup)
+
+note bottom of SFTP
+CW and Boomi are never both
+online for the exchange to
+work — fully decoupled, but
+"real-time" only down to the
+poll interval.
+end note
+
+@enduml
+
+@startuml Pattern_F_DirectDB
+title Pattern F — Direct Database Read (bypasses eAdaptor entirely)
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+database "CargoWise\nReporting DB (read replica)" as DB
+rectangle "Boomi / BI Tool" as BOOMI {
+  component "Scheduled SQL Query\nor Reporting Connector" as QUERY
+}
+cloud "Client / Downstream System" as CLIENT
+
+DB --> QUERY : Read-only, no eAdaptor\nauth/validation/logging layer
+QUERY --> CLIENT : Export / sync
+
+note bottom of DB
+No business-event trigger, no
+schema validation, no message
+log or retry semantics — this
+is a reporting/BI pattern, not
+a transactional integration.
+Never write to this DB.
+end note
+
+@enduml

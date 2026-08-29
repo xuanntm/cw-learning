@@ -19,8 +19,30 @@
 - **Malformed request** — an initial `411 Length Required` (missing `Content-Length` on an empty POST) was resolved by sending an explicit empty body; the `401` shown above is from a well-formed request that reached the real auth check.
 - **Propagation delay** — retested a few minutes after the reset with the same result.
 
+## Resolved mechanism (2026-08-29, from PROD DB schema discovery) — structural answer to question 1
+
+Full chain confirmed via `EDIInterchange`/`EDIMessage` FK discovery (`tmp/EDI_constraints_202608291119.csv`) plus direct column discovery of the `EDICommunication*` table family (`tmp/EDI_communication_v2_202608291126.csv`):
+
+```
+EDICommunicationPartyConfig (ECC)  -- one row per configured endpoint
+  ECC_Endpoint          -- the actual URL (e.g. https://.../api/EadaptorNext/<Name>)
+  ECC_Direction         -- IN / OUT
+  ECC_ECA_Auth   ------> EDICommunicationAuth (ECA)  -- the real credential record
+                            ECA_AuthorizationMode
+                            ECA_Username / ECA_Password        <- Basic Auth
+                            ECA_ClientID / ECA_ClientSecret     <- OAuth2
+                            ECA_Certificate / ECA_EncodedPrivateKey <- cert/mTLS
+  ECC_ECP_Party  ------> EDICommunicationParty (ECP)  -- the trading-partner record
+```
+
+**So `/eAdaptorNext`'s Basic Auth reads `EDICommunicationAuth.ECA_Username`/`ECA_Password`, reached via `EDICommunicationPartyConfig.ECC_ECA_Auth` — not `GlbExternalPassword`** (that earlier theory, based on `EI_GP`/`EM_GP`, turned out to point somewhere else — possibly the separate legacy `EDICommunicationsMode`/`EK_` transport table, unconfirmed).
+
+**Caveat — this is a PROD schema discovery, not a UAT/HONEASHKG-specific confirmation.** `HONEASHKG` is a UAT-only interchange; the PROD query correctly found no match for it. The table structure/mechanism is the same app, so it should transfer, but the actual root cause (which `ECC`/`ECA` record `HONEASHKG` resolves to, and whether the password reset touched a different record than the live auth check reads) still needs verifying directly against UAT once reachable, or by asking the team to check it server-side.
+
+**Do not query or record actual values of `ECA_Password`, `ECA_ClientSecret`, `ECA_Certificate`, or `ECA_EncodedPrivateKey`** in any tracked file — structure/relationships only.
+
 ## Still unknown — needs team input
-1. Does `/eAdaptorNext`'s Basic Auth actually read from this interchange config's password field, or from a separately linked CW user/login record (Registry → User Security)? If the latter, the reset done so far wouldn't take effect here.
+1. ~~Does `/eAdaptorNext`'s Basic Auth actually read from this interchange config's password field, or from a separately linked CW user/login record?~~ **Resolved structurally above** — reads `EDICommunicationAuth.ECA_Username`/`ECA_Password` via `ECC_ECA_Auth`. Still needs live verification against the actual `HONEASHKG` record in UAT.
 2. Are there multiple inbound config records for this interchange (per Application Code / Message Type / Sub Type — see `docs_for_thanh/foundations/05_EDI_menu_note.txt`), and is `/eAdaptorNext` bound to a different record than the one that was edited?
 3. Any known caching/propagation delay for credential changes on this service host longer than a few minutes?
 
