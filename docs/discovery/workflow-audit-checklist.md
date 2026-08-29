@@ -24,7 +24,8 @@ Everything downstream depends on these. Do this section before the rest.
 - [/] **A1. What is "BravoTran"?**
   - **New evidence 2026-08-29 (PROD DB, `tmp/EDI_communication_eadaptor_202608291128.csv`):** a real, currently-configured outbound eAdaptor Next endpoint exists in PROD: `EDICommunicationPartyConfig.ECC_Endpoint = https://bci-be.benline.com/api/EadaptorNext/BravoTrans`, `Direction = OUT`, `Status = REQ` (code meaning not yet decoded). Confirms "BravoTrans" is real, active infrastructure — not a dormant/orphaned name. Still unconfirmed: whether it's currently *receiving* traffic (i.e. whether any live job actually matches the empty+`NFB` Universal templates in Section B below) — this config record existing doesn't by itself prove that.
   - Still worth doing in CW: Maintain > Master Data > Organizations, search `BravoTran`, to get the business-side record (org type, active status, linked branches) alongside this technical config record.
-  - **Record here:** Confirmed real/active endpoint config in PROD (`ECC_Status = REQ`, meaning TBD). Organization-record lookup still pending.
+  - **New evidence 2026-08-29 (UAT DB, `docs/discovery/workflow-runtime-check.sql` Step 3, `tmp/UAT_step3_202608291546.csv`):** the BravoTran footprint is larger than previously catalogued — **13 templates** reference "BravoTran" in their name, not 5: the 5 generic ones already known, plus **7 branch/company-scoped variants** (`H56, ACA, BRK, BravoTran, system`, `H56, BCA, SHP/SAR/PNV/ORG/CON/BRK, BravoTran, system`). None of the 13 have a value in `ProcessTaskTemplate.P0_OH_Client` (the FK to `OrgHeader`) — rules out "BravoTran is a specific customer Org referenced directly on the template," though it doesn't rule out BravoTran being an Org scoped some other way, or not an Org at all. Combined with the confirmed live PROD endpoint (`bci-be.benline.com/api/EadaptorNext/BravoTrans`), the working theory remains: BravoTran is most likely an external system/integration partner name, not a CW Organization.
+  - **Status:** taking this to the team for discussion (2026-08-29) — this file has the current evidence base for that conversation. Record their answer here once available.
 
 - [x] **A2. What is "MVN"?**
   - **Confirmed 2026-08-28 via direct PROD DB query** (`GlbCompany` joined through `GlbBranch`): `GC_Code = MVN`, `GC_Name = "Marine Connections (Vietnam) Co., Ltd."`, branch `GB_Code = MSG` ("Ho Chi Minh"). Has active job data referencing it (`JH_IsActive = 1`), so this is a live, operating company — not dormant/deprecated.
@@ -40,12 +41,17 @@ Everything downstream depends on these. Do this section before the rest.
 
 ## Section B — Critical: verify the empty + NFB Universal templates
 
-Applies to `BravoTran Shipment` (SHP), `BravoTran Customs` (BRK), `BravoTran Console` (CON) — confirmed empty (0 items) and `TriggerFallbackMethod=NFB` in **both** Non-Prod and Prod.
+Applies to `BravoTran Shipment` (SHP), `BravoTran Customs` (BRK), `BravoTran Console` (CON) — confirmed empty (0 items) and `TriggerFallbackMethod=NFB` in **both** Non-Prod and Prod (static XML analysis).
 
-- [ ] **B1.** Open each of the 3 templates in Registry > Workflow Templates. Confirm directly in the UI (not just the XML) that Tasks/Milestones/Triggers tabs are genuinely empty and Trigger Fallback Method is still `NFB`.
-- [ ] **B2.** Determine whether any live job actually matches these Universal templates. Practical trick from the CW reference guide: open a job of the relevant type (e.g. any Shipment), go to its Workflow & Tracking tab, add the **Template Name (Source Template)** column to the grid, and check whether any job shows a BravoTran template as its source. If BravoTran is a real org (from A1), filter/search jobs for that customer specifically.
-- [ ] **B3.** If jobs ARE matching and getting nothing applied: escalate — this is jobs silently missing all workflow automation (including any EDI triggers) today.
-- [ ] **B4.** If no jobs match (BravoTran turns out inactive/unused): downgrade this from "critical" to "cleanup candidate" — recommend deactivating the 3 templates or documenting them as intentionally dormant so a future audit doesn't re-flag them.
+**New evidence 2026-08-29 (live UAT DB query, `docs/discovery/workflow-runtime-check.sql` Step 2, results in `tmp/UAT_step2_202608291538.csv`):**
+- **Two corrections to the template list itself:** a 5th BravoTran template exists — `BravoTran Automatic Invoice Posting` (PNV, also `NFB` + `IsUniversal=1`) — not previously catalogued in `workflow-templates-analysis.md`/`prod-vs-uat-gap-analysis.md`. Meanwhile `BravoTran Console` does **not** appear in UAT's active-template list at all — needs checking (inactive? renamed? UAT-specific absence?).
+- **B2 answered for UAT specifically:** all 5 BravoTran templates show `ActualProcessInstanceCount = 0` — zero jobs have ever matched any of them in UAT. Per B4 below, that would downgrade UAT's instance of this risk to "cleanup candidate."
+- **This does NOT answer B2 for PROD**, which is the actually load-bearing environment — `docs/discovery/edi-communication-mechanism-reference.md` already confirmed a real, configured PROD outbound endpoint (`https://bci-be.benline.com/api/EadaptorNext/BravoTrans`), so PROD traffic patterns could differ substantially from UAT's. **Run `workflow-runtime-check.sql` Step 2 against PROD before treating B2–B4 as resolved.**
+
+- [ ] **B1.** Open each of the (now 5, not 3) templates in Registry > Workflow Templates. Confirm directly in the UI (not just the XML/DB) that Tasks/Milestones/Triggers tabs are genuinely empty and Trigger Fallback Method is still `NFB` for the 3 `NFB` ones.
+- [/] **B2.** Determine whether any live job actually matches these Universal templates. **UAT: confirmed no (0 for all 5) via direct DB query, 2026-08-29.** **PROD: still needed** — this is the environment that actually matters given the confirmed live endpoint config.
+- [ ] **B3.** If jobs ARE matching (check PROD) and getting nothing applied: escalate — this is jobs silently missing all workflow automation (including any EDI triggers) today.
+- [ ] **B4.** If PROD also shows no jobs matching: downgrade this from "critical" to "cleanup candidate" — recommend deactivating the templates or documenting them as intentionally dormant so a future audit doesn't re-flag them.
 - [ ] **B5.** Record outcome in `docs/backlog/` following the pattern of `docs/backlog/eadaptor-inbound-auth-401.md` if it turns out to be a real gap needing a fix.
 
 ---
