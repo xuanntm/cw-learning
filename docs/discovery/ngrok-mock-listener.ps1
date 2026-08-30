@@ -70,6 +70,14 @@
         (250ms timeout) that checks for a manual Ctrl+C keypress between
         polls, since PowerShell cannot interrupt a blocking synchronous
         .NET call with its normal Ctrl+C handling
+  1.5 - fixed a crash on the first real 401 response: $response.Headers.
+        Add("WWW-Authenticate", ...) throws ("must be modified using the
+        appropriate property or method") - .NET's HttpListenerResponse
+        requires the indexer/Set form for this header, not Add. Confirmed
+        2026-08-30 - the exception was unhandled, killing the whole
+        listener (and releasing the port) right after the first request
+        that failed auth, instead of just returning a clean 401. Fixed by
+        using $response.Headers["WWW-Authenticate"] = ... instead.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'ExpectedPassword',
     Justification = 'This is a local test-only receiver validating a test credential (generated via the EDI Client "Generate Password" button), not a production secret. Pass at invocation, never hardcode.')]
@@ -79,7 +87,7 @@ param(
     [string]$ExpectedPassword = ""
 )
 
-$ScriptVersion = "1.4"
+$ScriptVersion = "1.5"
 
 Write-Host "`n=== ngrok mock listener (script version: $ScriptVersion) ===" -ForegroundColor Magenta
 Write-Host "Remember to start ngrok with: ngrok http $Port --host-header=rewrite" -ForegroundColor Yellow
@@ -158,7 +166,7 @@ try {
                 $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("OK")
             } else {
                 $response.StatusCode = 401
-                $response.Headers.Add("WWW-Authenticate", 'Basic realm="eAdaptorNext Mock Receiver"')
+                $response.Headers["WWW-Authenticate"] = 'Basic realm="eAdaptorNext Mock Receiver"'
                 $responseBytes = [System.Text.Encoding]::UTF8.GetBytes("Unauthorized")
             }
         } else {

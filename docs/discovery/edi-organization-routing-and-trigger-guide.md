@@ -15,6 +15,7 @@ Add a new EDI Communications record with:
 | Communication Transport | `EDP` (eAdaptor Interface) | `EK_CommunicationsTransport` |
 | Purpose Code | short partner code | `EK_MessagePurpose` |
 | EDI Client | the EDI Client's name | resolves to `EK_ECC_CommunicationPartyConfig` |
+| Recipient ID | free-text trading-partner identifier (embedded in the outbound message envelope) | `EK_Destination` — confirmed via field-inspector 2026-08-30 (`DestinationTextBox` control, plain `ZString`, no lookup/validation). Any consistent value works for a test integration, e.g. the test Org code |
 
 This confirms the `EDICommunicationsMode` mechanism already mapped from the earlier BravoTran routing investigation — this is the real UI screen that writes those rows.
 
@@ -65,21 +66,22 @@ Confirmed via full column discovery: `JobShipment` has no `ControllingCustomer`/
 
 Both this source document and `docs/discovery/edi-client-setup-guide-summary.md` state **"Basic Authentication (self-hosted endpoints only)"** — yet this environment's real UAT config demonstrably uses `BAU` (Basic Auth) on multiple active outbound `EDI Client`s (Sage, Kestrel, SAPI, VNPT, BravoTrans, Boomi), in an environment that otherwise looks WiseCloud-hosted (Cloudflare-fronted `wisegrid.net`). Two official-ish sources agreeing doesn't resolve this — worth asking whoever administers this CW instance directly whether it's genuinely self-hosted, a hybrid arrangement, or whether the "self-hosted only" restriction is specifically outbound-exempt in practice (matching the Developer's Guide's more precise "WiseCloud **inbound** mandates certificate" phrasing). Don't take either doc's blanket statement at face value over the empirical DB evidence.
 
-## Current test case status (2026-08-30) — "Full Integration" end-to-end
-
-Everything below is confirmed working and consistent as of this date, using the real patterns confirmed above:
+## Current test case status (2026-08-30, updated) — "Full Integration" end-to-end
 
 | Piece | Value | Status |
 |---|---|---|
 | Test Organization | `FULTESVIC` / "FULL TESTING VIETNAM COMPANY" | ✅ Created, active, valid |
 | EDI Client | "Full Integration" | ✅ Outbound active, `BAU`, endpoint = ngrok tunnel |
 | Org → EDI Client routing | `EDICommunicationsMode`: Module `SHP`, `TRX`/`EDP`, Purpose `FTI` → "Full Integration" | ✅ Confirmed via `edi-full-configuration-finder.sql` |
-| Workflow trigger | `ProcessTasks` row, `P9_Type='TRG'`, Description "Full Integration Testing", `P9_SE_NKMilestoneEvent='BKC'`, linked to global `H56, SHP, global, system` template via `P9_ParentID`+`P9_ParentTableCode='P0'` | ✅ Confirmed saved correctly |
-| Test job | `S00075824` (company `SPH`) | ✅ Created; `FULTESVIC` confirmed as **Consignor and Consignee** via `cvw_JobShipmentOrgs` |
-| ⚠️ Open gap | `ControllingCustomer_Code` is blank on `S00075824` | If the trigger's formula checks Controlling Customer (unknown — condition text isn't plainly readable), it won't fire until this is also set to `FULTESVIC` |
+| Workflow trigger | `ProcessTasks` row, `P9_Type='TRG'`, Description "Full Integration Testing", `P9_SE_NKMilestoneEvent='BKC'`/`'EDT'` (changed during testing), linked to global `H56, SHP, global, system` template via `P9_ParentID`+`P9_ParentTableCode='P0'` | ✅ Confirmed saved correctly; condition columns match the working "EDI" trigger byte-for-byte except event code |
+| Completion Trigger Action | Action `XUS`, Purpose `FTI`, Recipient `CNE` | ✅ Purpose confirmed matching routing config; Recipient role (`CNE`=Consignee) should resolve correctly on this job — but actual send still unconfirmed. See `docs/discovery/completion-trigger-action-code-dictionary.md` |
+| ⚠️ Open blocker | Working trigger uses Recipient `OTH` ("Other") instead of `CNE` — selecting `OTH` on the custom trigger throws a save-blocking validation error | Not yet reproducible; likely needs a companion field (e.g. `Recipient Organisation`) populated first |
+| Test jobs | `S00075824` (original), `S00075831`, `S00075832` (both created 2026-08-30) | ✅ All three now have real `JobHeader`/job numbers — see `docs/discovery/jobheader-creation-mechanism.md` (JobHeader is created on first Billing edit, not at shipment creation — this was misdiagnosed as a replication stall for most of the day, now closed) |
+| Org roles | `FULTESVIC` confirmed as **Consignor and Consignee** on `S00075824` via `cvw_JobShipmentOrgs`; `ControllingCustomer_Code` still blank | Not yet re-checked on `S00075831`/`S00075832` |
+| Ruled out (dead end) | `ProcessJobTriggerLink`/`ProcessTemplateTrigger` (the `ShipmentForm > Workflow > Triggers > Countdown` UI) | ❌ Confirmed unrelated — only 3 fixed, built-in system triggers exist there (`Job Open`, `Billing Job Edit`, `Add`); the custom trigger doesn't and can't appear in this table at all |
 | Mock receiver | `ngrok-mock-listener.ps1` v1.4 + `ngrok http 8080 --host-header=rewrite` | ✅ Confirmed reachable and working, Basic Auth validation enabled |
 
-**Next action**: confirm whether the trigger condition checks Controlling Customer; if unsure, set `FULTESVIC` as Controlling Customer on `S00075824` too (safe, no downside on a test job), then upload a `BKC`-type document to the job's eDocs tab and watch the three verification layers (ngrok inspector, mock listener console, `edi-client-verify.sql` Step 2).
+**Next action**: resolve the `OTH` save-validation error (try populating `Recipient Organisation` first), or alternatively just test with `CNE` as-is since it should theoretically resolve correctly — then upload a `BKC`/`EDT`-type document or trigger the matching event on one of the now-billable test jobs and watch the three verification layers (ngrok inspector, mock listener console, `edi-client-verify.sql` Step 2).
 
 ## Related files
 
@@ -89,3 +91,6 @@ Everything below is confirmed working and consistent as of this date, using the 
 - `docs/discovery/test-shipment-verify.sql` — job verification pattern, including the `cvw_JobShipmentOrgs` discovery.
 - `docs/discovery/ngrok-integration-testing-guide.md`, `docs/discovery/ngrok-mock-listener.ps1` — the mock receiver this test case sends to.
 - `docs/discovery/workflow-audit-checklist.md` — the BravoTran `EDICommunicationsMode` routing finding this confirms the UI mechanism for.
+- `docs/discovery/completion-trigger-action-code-dictionary.md` — the growing Action/Purpose/Recipient code reference, including the `OTH` save-error blocker.
+- `docs/discovery/jobheader-creation-mechanism.md` — why `S00075831`/`S00075832` had no job number for most of the day (Billing-edit-triggered, not a replication issue).
+- `docs/discovery/edi-trigger-flow-mechanism-reference.md` — the full 9-stage pipeline doc, including the `ProcessTemplateTrigger` dead end ruled out today.

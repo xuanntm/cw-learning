@@ -31,7 +31,7 @@ Both jobs sat with a `JobShipment` row and no `JobHeader` for roughly an hour (`
 
 - Whether *any* Billing-tab save triggers this, or something more specific (e.g. a particular field, like assigning a billing branch/debtor). Both test cases here were general "update billing information" actions — not isolated to one field.
 - Whether other actions (outside Billing) can also trigger `JobHeader` creation independently — not tested.
-- Whether `DEX` is the specific/reliable event code for this action, or coincidental.
+- ~~Whether `DEX` is the specific/reliable event code for this action, or coincidental.~~ **Resolved 2026-08-30**: `DEX` decodes to "Data Export" (`StmEvent.SE_Desc`, see `docs/discovery/milestone-event-reference-discovery.sql`) — an unrelated system-level event, not specific to Billing edits or `JobHeader` creation. The real event tied to this action is `JED` ("Billing Job Edit"), confirmed via the built-in `ProcessTemplateTrigger` row of the same name (see `docs/discovery/edi-trigger-flow-mechanism-reference.md`'s ruled-out `ProcessJobTriggerLink` dead end). The `DEX` correlation observed earlier was coincidental timing, not the causal event.
 
 ## Related files
 

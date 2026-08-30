@@ -36,6 +36,23 @@ Consolidates everything confirmed this session about the pipeline from "a docume
 8. Message created and sent (EDIInterchange/EDIMessage, via the EAM service task)
 ```
 
+## Quick reference — table for each stage
+
+| Stage | Table(s) | Key columns | Status |
+|---|---|---|---|
+| 1. Document Upload | `StorageMain` | Document Type classification | ✅ mapped, but confirmed to NOT cascade to Stage 2/3 by itself |
+| 2. Required Document Reconciliation | `JobRequiredDocument` (`EQ_`) | `EQ_DocType`, `EQ_DateReceived`, `EQ_ParentID`+`EQ_ParentTableCode` | ⚠️ reconciliation mechanism (what actually stamps `EQ_DateReceived`) not found |
+| 3. Milestone/Event Registration | `StmALog` (`SL_`) | `SL_SE_NKEvent`, `SL_FireWorkflow`, `SL_EventTimeUtc`, `SL_Table`+`SL_Parent` | ✅ confirmed |
+| Event code dictionary (used by both Stage 3 and 4) | `StmEvent` (`SE_`) | `SE_Code`, `SE_Desc`, plus milestone-type flags | ✅ confirmed 2026-08-30 — see `docs/discovery/milestone-event-reference-discovery.sql` |
+| 4. Template Trigger Definition | `ProcessTasks` (`P9_`, `P9_Type='TRG'`, `P9_FH_ProcessHeader` blank) | `P9_SE_NKMilestoneEvent`, `P9_TriggerCondition` (type code only, formula unreadable), `P9_ParentID`+`P9_ParentTableCode='P0'` → `ProcessTaskTemplate` | ✅ mechanism confirmed; ⚠️ condition formula text not readable via SQL |
+| 5. Job-Instance Trigger Firing | `ProcessTasks` (same table, `P9_FH_ProcessHeader` populated) | same as above, plus the job link | ⚠️ stayed blank even after a confirmed real send on `S00075834` — semantics not fully understood |
+| 6. Completion Trigger Action | **not located** | Action/Purpose/Recipient/Recipient Org/Alternate Recipient — only observed via UI so far | ⚠️ not found; see `docs/discovery/completion-trigger-action-code-dictionary.md` |
+| Ruled out for Stage 5/6 | `ProcessJobTriggerLink` (`P9L_`) + `ProcessTemplateTrigger` (`P9T_`) | `P9L_TriggerFiredCountdown`, `P9L_ParentTableCode`+`P9L_ParentId` | ❌ dead end — only 3 fixed built-in system triggers, unrelated to custom triggers |
+| 7. Org → EDI Client Routing | `EDICommunicationsMode` (`EK_`) | `EK_Module`, `EK_CommsDirection`, `EK_CommunicationsTransport`, `EK_MessagePurpose`, `EK_Destination` (Recipient ID), `EK_ParentTableCode='OH'`+`EK_ParentID`, `EK_ECC_CommunicationPartyConfig` | ✅ confirmed |
+| Job → Org role resolution (feeds Stage 6's Recipient role) | `cvw_JobShipmentOrgs` (view) | `ControllingCustomer_Code`, `JS_E2_OA_OH_NKConsignor`/`NKConsignee`, keyed by `JS_PK` | ✅ confirmed |
+| 8. EDI Client Configuration | `EDICommunicationParty` (`ECP_`) + `EDICommunicationPartyConfig` (`ECC_`) + `EDICommunicationAuth` (`ECA_`) | client name, endpoint, auth mode | ✅ confirmed |
+| 9. Actual Send | `EDIInterchange` (`EI_`) + `EDIMessage` (`EM_`) | `EI_Status`/`EM_Status`, `EM_EI` (FK to interchange), `EM_LinkTable`+`EM_LinkUniqueID` (polymorphic pointer straight to the source job), `EM_MessageType` | ✅ confirmed, verified end-to-end via exact `EI_PK` ↔ `Eadaptor-Trackingid` match |
+
 ## Stage 1 — Document Upload
 
 **Table**: `StorageMain` (`Enterprise.DocumentScanning.Business.StorageMain`), confirmed via field-inspector on `ShipmentForm > eDocs > Document Storage`.
@@ -94,6 +111,35 @@ The real reference document describes this as a distinct configuration block, se
 **This table has not been found in the DB yet.** The FK discovery query already queued (`docs/discovery/trigger-config-compare.sql` Step 2, searching for FKs referencing `ProcessTasks.P9_PK`) is the next step to locate it — **this is possibly where your test config differs from the working one**, since Stage 4's condition columns already matched exactly.
 
 **⚠️ Dead end ruled out (2026-08-30)**: `ShipmentForm > Workflow > Triggers > Countdown` looked like a promising lead — it's a live, per-job trigger-firing UI with a real backing table (`ProcessJobTriggerLink`, `P9L_` prefix, linking a job via the standard `P9L_ParentTableCode`/`P9L_ParentId` pointer to `ProcessTemplateTrigger`, `P9T_` prefix). Confirmed via field-inspector and direct query (`docs/discovery/workflow-trigger-live-state-discovery.sql`). **But `ProcessTemplateTrigger` turned out to be a small, fixed set of 3 built-in system triggers** (`Job Open`/`JOP`, `Billing Job Edit`/`JED`, `Add`/`ADD`), company/branch-unscoped, applying to every job in the system — not a user-configurable per-integration mechanism. A search for any row matching the custom "Full Integration Testing" trigger (by description or by creator) returned **zero rows**. The Countdown value the user watched change after a Billing edit was this built-in `Billing Job Edit` system trigger reacting to its own `JED` event — coincidental timing, unrelated to the custom EDT/BKC trigger. `ProcessJobTriggerLink`/`ProcessTemplateTrigger` can be ruled out as the "Completion Trigger Action" mechanism — the custom trigger only exists in `ProcessTasks`, which this table structurally cannot reference.
+
+**Field values compared directly in the UI (2026-08-30)** — see `docs/discovery/completion-trigger-action-code-dictionary.md` for the growing code reference:
+
+| Field | Working "EDI" trigger | Custom "Full Integration Testing" trigger |
+|---|---|---|
+| Action | `XUS` | `XUS` (same) |
+| Purpose | `EAN` | `FTI` — **confirmed correctly matching** the Purpose Code already configured on `FULTESVIC`'s `EDICommunicationsMode` routing row, so this is not the mismatch |
+| Recipient | `OTH` ("Other") | `CNE` ("Consignee") — `FULTESVIC` is confirmed as Consignee on `S00075824` via `cvw_JobShipmentOrgs`, so this *should* resolve correctly on this test job |
+
+**⚠️ New blocker found**: selecting `OTH` on the custom trigger (to try matching the working config exactly) **throws a validation error and blocks saving** — not yet reproducible via the standard UI. The working trigger already has `OTH` saved, likely set via a path that bypasses this validation, or requiring a companion field (e.g. `Recipient Organisation`) that hasn't been populated when testing. This is now the most concrete open lead — see the code dictionary doc's "Open gap" section for next steps.
+
+## ✅ Success confirmed (2026-08-30) — end-to-end send on `S00075834`
+
+Real message delivery confirmed via three independent, cross-matching sources:
+1. `tmp/2026_08_30_first_successful_message.log` — full `UniversalInterchange`/`UniversalShipment` XML received by the ngrok mock listener, `Eadaptor-Ediclientname: Full Integration`, `ActionPurpose` `FTI`, `RecipientID` `FULTESVIC`.
+2. DB-side: `EDIMessage`/`EDIInterchange` rows exist for this exact send (`docs/discovery/full-integration-success-confirmation.sql` Step 2), `EI_Status`/`EM_Status = SNT`.
+3. **Exact match**: `EI_PK = FE4FBF2C-DACD-4E4D-87CC-AA3D21C73737` is byte-for-byte identical to the `Eadaptor-Trackingid` header captured in the mock listener log — proof this is the same record on both sides, not just a nearby-in-time coincidence.
+
+**Event codes decoded (2026-08-30)**, resolving the `EDT`/`DEX` confusion — see `docs/discovery/milestone-event-reference-discovery.sql`, real dictionary is `StmEvent` (`SE_Code`/`SE_Desc`):
+
+| Code | Meaning |
+|---|---|
+| `EDT` | Edited a record — generic, fires on **any** edit to the record, not billing-specific |
+| `DEX` | Data Export — a distinct, unrelated system-level event |
+| `BKC` | Booking Confirmed (the trigger's original event code before being changed to `EDT`) |
+| `JED` | Billing Job Edit (confirmed as the event behind `docs/discovery/jobheader-creation-mechanism.md`) |
+| `JOP` | Job Open |
+
+This explains why editing Billing finally produced a send: it wasn't Billing specifically that mattered — the trigger's condition was changed to listen for `EDT` ("any edit"), an almost-always-true condition, so any edit at all would satisfy it. `DEX` is unrelated — most likely the EAM/eAdaptor service's own "data exported" confirmation log entry, a side effect of a successful send rather than something a trigger listens for. `ProcessTasks.P9_FH_ProcessHeader` remaining blank on all three trigger rows for `S00075834` despite a confirmed real send (see Step 5 result in `full-integration-success-confirmation.sql`) is still unexplained — either that column doesn't mean "has fired" the way earlier assumed, or the actual firing/send record lives somewhere not yet found. Not blocking further work, since the practical goal (a working model integration, proven end-to-end) is achieved regardless.
 
 ## Stage 7 — Organization → EDI Client Routing ✅
 
