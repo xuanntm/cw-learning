@@ -103,12 +103,31 @@ Last-30-days sample (`tmp/EDI_last_30_days_202608291120.csv`), ~166K messages to
 
 Rejection rate is negligible (~0.002%) in this window — no explicit "Failed"/"Error" status appeared, so failures may roll up under `WAR` or are genuinely rare.
 
+## Inbound EDI — confirmed 2026-08-30: no Org-level routing at all
+
+Unlike outbound (which needs an `EDICommunicationsMode`/`EK_` row on the receiving Organization pointing at the EDI Client), **inbound has no Org-routing mechanism whatsoever** — confirmed by joining every real `ECC_Direction='IN'` config in the system (14 rows: `Boomi`, `EAN_Eadaptor_NEXT`, `Full Integration`, `H56_TRN_CW2BOOMI2NS_AP`/`_AR`, `H56_TRN_CW2BRAVO`/`CW2KES`/`CW2SAGE`/`CW2SAPI`/`CW2SHPDOC`/`CW2SYNXUE`/`CW2SYNXUS`/`CW2VNPT`, `H56_TRN_MIDDLE`, `Sharepoint Test`) against `EDICommunicationsMode.EK_ECC_CommunicationPartyConfig` — **zero matches**. Inbound identifies the sender purely through its own auth (certificate/OAuth) and `ECC_GB_Branch`/`ECC_GE_Department` scoping, with no Organization-side setup required at all. See `docs/discovery/inbound-edi-config-discovery.sql`.
+
+**Also confirmed**: every one of those 14 real inbound configs uses `ECA_AuthorizationMode = 'OAU'` (OAuth) — zero exceptions. This validates the Developer's Guide's "WiseCloud inbound mandates certificate-based auth" claim against real data, not just the doc's stated rule.
+
+**Note**: `Full Integration` (this session's own test EDI Client) already has an active inbound config (`IsActive=1`, Branch/Department both populated) — worth checking in the UI before building a new client for inbound testing.
+
+### Inbound certificate generation, confirmed end-to-end (2026-08-30)
+
+After clicking "Generate Certificate" on `Full Integration`'s inbound config, checked `EDICommunicationAuth` (metadata only — never `ECA_Certificate`/`ECA_EncodedPrivateKey`/`ECA_ClientSecret`):
+
+- `ECA_FlowCode = 'CCT'` (Client Certificate Grant), `ECA_ClientID` and `ECA_AuthorizationEndpoint` (`https://login.microsoftonline.com/{tenant}/v2.0`) were already populated as of `ECA_SystemCreateTimeUtc = 2026-08-29 13:11` — **a day before** today's Generate Certificate click (`ECA_SystemLastEditTimeUtc = 2026-08-30 14:37`). **Client ID and Tenant ID are OAuth public identifiers, not secrets** — safe to reference directly, unlike the credential columns.
+- **Conclusion: the Entra ID app registration already existed** for this EDI Client, set up separately from (and before) the certificate itself. "Generate Certificate" only updated the certificate/key fields on this same pre-existing registration — **no additional manual Entra Portal app-registration step was needed** for this particular client.
+- `ECA_OperationId` populated with a real GUID after generation — a tracking ID for the certificate-generation operation itself. `ECA_Resource`/`ECA_RenewalOperationId` blank (expected — no renewal needed on a freshly generated cert).
+
+This means for `Full Integration` specifically, inbound is now fully configured (Branch/Department + Entra app registration + freshly generated certificate) — the next step is a live `GetOAuthToken` test, not further setup.
+
 ## Open questions
 
 1. What is `GlbExternalPassword` (`EI_GP`/`EM_GP`) actually used for, if not `/eAdaptorNext` Basic Auth? Candidates: the separate legacy `EDICommunicationsMode` (`EK_`) FTP/SFTP transport (though that table has its own `EK_LoginName`/`EK_Password` and doesn't reference `GP` directly either), or some other message-signing/mailbox context. Unconfirmed — would need `EDICommunicationsMode` FK discovery or a live example to trace.
 2. What do `ECC_Status = 'REQ'` and the `EM_Status`/`EI_Status` codes actually decode to? No lookup table found yet — may be a hardcoded CW application enum rather than a DB reference table.
 3. Is `BravoTrans` currently receiving real traffic, or configured-but-unused? (Feeds directly into `workflow-audit-checklist.md` Section B.)
 4. Does `EDICommunicationParty.ECP_ApplicationCode` or `ECP_Name` hold partner codes like `HONEASHKG`, for looking up a specific interchange's config end-to-end? Not yet queried.
+5. Several real inbound configs (`Boomi`, `EAN_Eadaptor_NEXT`, `H56_TRN_CW2BRAVO`/`CW2KES`/`CW2SAGE`/`CW2SAPI`/`CW2SHPDOC`/`CW2SYNXUE`/`CW2SYNXUS`/`CW2VNPT`) are `IsActive=1` with **blank** Branch/Department, despite the setup guide stating these are mandatory for inbound. Either `ECP_IsActive` (party-level) is distinct from a per-direction enabled flag not yet queried, or the mandatory validation doesn't apply retroactively to already-saved rows. Not yet resolved.
 
 ## Related files
 
