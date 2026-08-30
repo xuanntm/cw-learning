@@ -18,10 +18,12 @@ Async: https://{Enterprise Code}{Server Code}services.wisegrid.net/eAdaptorNext/
 
 Matches the confirmed real hostnames: `H56TRNservices.wisegrid.net` (Enterprise=`H56`, Server=`TRN`), so the **PROD equivalent is `H56PRDservices.wisegrid.net`** — following the same formula as the confirmed UAT one, though still worth a live confirmation before relying on it (per the earlier caution about the SQL DB host's hidden `.test.` naming gotcha — this formula-based prediction is much better-grounded than that guess was, but "confirmed by an official doc" and "verified live" are still two different things).
 
-Format-specific sync endpoints (append to the base `/eAdaptorNext` sync URL):
+Format-specific sync endpoints listed in the guide (append to the base `/eAdaptorNext` sync URL):
 `/Native`, `/UniversalActivity`, `/UniversalActivityRequest`, `/UniversalDocumentRequest`, `/UniversalEvent`, `/UniversalShipment`, `/UniversalShipmentRequest`, `/UniversalTransaction`, `/UniversalTransactionBatch`, `/UniversalTransactionBatchRequest`, `/UniversalInterchangeRequeueRequest`.
 
-`/eAdaptorNext/Async` is Universal Interchange only (wraps multiple messages, processed in order); `/eAdaptorNext` (sync) is used for Interchange Requeue requests specifically.
+**⚠️ Correction (2026-08-30)**: the line above (and the original "bare `/eAdaptorNext` is for Interchange Requeue requests specifically" reading) does not match the real official Postman collection. Checked every single request in `eAdaptor Next API.postman_collection.json` (Native XMLs, all Universal XML types, all Universal Request types, Universal Interchange, everything) — **zero requests append any path suffix**; every one posts to the same bare `{{eAdaptorNextURL}}`. CW determines the message type from the **XML root element itself** (`<UniversalShipmentRequest>`, `<Native>`, `<UniversalTransactionBatchRequest>`, etc.), not the URL path. This is confirmed from the collection's own structure (a static, authoritative source), though a real `Universal Shipment Request (XSR)` call against the bare endpoint hasn't been run/verified live yet as of this note. Treat the format-specific paths above as, at best, alternate/undocumented-in-practice routes — trust the real collection's bare-URL pattern over this line.
+
+`/eAdaptorNext/Async` is confirmed still real and distinct — Universal Interchange only (wraps multiple messages, processed in order, queued).
 
 Minimum TLS version: **1.2** (WiseCloud-hosted).
 
