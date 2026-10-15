@@ -219,3 +219,10 @@ __marimo__/
 
 
 /tmp/
+# Document Builder scratch uploads (raw sample data, conversation logs)
+docs/document-builder/_temp/*
+!docs/document-builder/_temp/README.md
+docs/document-builder/samples/
+# Document Builder generated outputs (contain client names / user logins)
+docs/document-builder/generated/*
+!docs/document-builder/generated/README.md
